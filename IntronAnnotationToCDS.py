@@ -270,7 +270,7 @@ def retrieve_ensembl_transcript(dataset_intron,intron_by_transcripts):
 		introns_by_group.sort(key=lambda x: x.split(':')[3])
 		if introns_by_group == introns_in_transcript:
 			Canonical_Transcript[key] = result[0]
-	return(group_by_intron)
+	return(Canonical_Transcript)
 
 
 ###Parsing des éléments en argument ####
@@ -365,5 +365,9 @@ for Transcript_id,CDS in dataset_CDS.items():
 
 print(number_CDS_no_stop,'/',len(dataset_CDS),' transcrits n\'ont pas de codon stop (',round((number_CDS_no_stop/len(dataset_CDS))*100,2),'%)',sep='')
 print(len(intron_by_transcripts),'/',len(dataset_CDS),' transcrits possèdent des introns de nos jeux de données (',round((len(intron_by_transcripts)/len(dataset_CDS))*100,2),'%)',sep='')
+
+Canonical_Transcript = retrieve_ensembl_transcript(dataset_intron,intron_by_transcripts)
+
+print(len(Canonical_Transcript),'/',len(dataset_CDS),' transcrits sont identifiés comme étant les canoniques',sep='')
 
 
