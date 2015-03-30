@@ -311,8 +311,9 @@ for Transcript_id,CDS in dataset_CDS.items():
 			position_exon_right = int(position_exon_left)+1
 			exon_left = CDS_content[elmt]
 			exon_right = CDS_content[CDS[position_exon_right]]
-
+			#Vérification si transcrit possède un codon stop
 			if (exon_left.feature_type == 'stop_codon' or exon_right.feature_type == 'stop_codon'):
+				stop_codon_control += 1 #Si oui on met +1 au control
 				continue
 			print(exon_left.id,"and",exon_right.id)
 			intron_coord = "chr"+exon_left.chr+":"+str(int(exon_left.stop))+"-"+str(int(exon_right.start)+2)
