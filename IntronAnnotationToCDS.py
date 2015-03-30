@@ -144,7 +144,6 @@ def extract_coord(file_name):
 	file_in.close() 
 	file_out.close()
 	return(retrieve_name,file_out_name,coord_to_intron)
-
 ###Fonction qui va parser le fichier GTf à partir de la base de données générée et récupérer les annotations dans un objet
 def parsing_GTF(temporary_file_name,db_name):
 	#Connexion à la base de données du GTF
@@ -241,6 +240,38 @@ def extract_fasta_info(filename,retrieve_name,liste_transcripts,IDlist):
 			CDS_content[CDS_id.id] = CDS_id
 
 	return(dataset_intron,dataset_CDS,CDS_content)
+
+
+##Fonction qui va trier les introns de sorte à les lister par transcrits, puis qui va les comparer à la liste des transcrits ensembm, et vérifier
+##Si la liste d'intron dans les deux listes sont égales, si c'est le cas, on considerera le transcrit ensembl comme le canonique pour notre jeu de données
+def retrieve_ensembl_transcript(dataset_intron,intron_by_transcripts):
+	group_by_intron={} # Dictionnaire qui contiendra la liste des introns appartenants au même transcrit
+	#On parcours les identifiants pour déterminer le nombre d'introns présent dans notre jeu de données dans chaque gene
+	regex = re.compile('^[^:]+:(.+):[0-9]{,3}')
+	for key in retrieve_name:
+		result = regex.findall(key)
+		if result[0] in group_by_intron:
+			group_by_intron[result[0]].append(key)
+		else:
+			group_by_intron[result[0]]=[]
+			group_by_intron[result[0]].append(key)
+
+	Canonical_Transcript = {} # Contient les identifiants des transcrits qui contiennent tous les introns d'un gène de notre jeu de données
+	for key,value in intron_by_transcripts.items():
+		value.sort(key=lambda x: x.split(':')[3])
+		introns_in_transcript = value
+		result = regex.findall(introns_in_transcript[0])
+
+		if result[0] in group_by_intron:
+			introns_by_group = group_by_intron[result[0]]
+		else:
+			print('Le transcrit',key,'ne contient pas d\'introns de notre jeu de données')
+			continue
+		introns_by_group.sort(key=lambda x: x.split(':')[3])
+		if introns_by_group == introns_in_transcript:
+			Canonical_Transcript[key] = result[0]
+	return(group_by_intron)
+
 
 ###Parsing des éléments en argument ####
 create_db = False # Par defaut, gffutils va créer une base de donnée issue du fichier GTF pour le parser
