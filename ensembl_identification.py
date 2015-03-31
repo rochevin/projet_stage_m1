@@ -104,7 +104,7 @@ def extract_ensembl_id(file_name):
 ###On définit une fonction qui va extraire les annotations et enregistrer les coordonnées au format BED
 def extract_coord(file_name):
 	intron_content = {} # dictionnaire qui va contenir les objets issues de IntronInfoAnnotate
-	exon_coord_in_braunch_transcript = {} # dictionnaire qui contient en clé les coordonnées de nos introns et en valeur l'identifiant de chaque intron
+	intron_coord_in_braunch_transcript = {} # dictionnaire qui contient en clé les coordonnées de nos introns et en valeur l'identifiant de chaque intron
 
 	file_in=open(file_name,"r") #On ouvre le fichier qui contient les données en mode lecture
 	name = file_in.readline() #On enregistre la première ligne étant l'en tête "Intron	Coordinates	type	txRegion	PTCstatus"
@@ -123,19 +123,16 @@ def extract_coord(file_name):
 			intron_content[result[0]]=[]
 			intron_content[result[0]].append(intron_name)
 		#On enregistre les coordonnées de l'intron dans le dictionnaire qui va identifier un intron à ses coordonnées via son identifiant
-		if result[0] in exon_coord_in_braunch_transcript:
-			exon_coord_in_braunch_transcript[result[0]].append(intron_name.flank_exon_left())
-			exon_coord_in_braunch_transcript[result[0]].append(intron_name.flank_exon_right())
+		coords = intron_name.formating_coord()
+		if coords in intron_coord_in_braunch_transcript:
+			intron_coord_in_braunch_transcript[coords].append(intron_name.id)
 		else:
-			exon_coord_in_braunch_transcript[result[0]]=[]
-			exon_coord_in_braunch_transcript[result[0]].append(intron_name.flank_exon_left())
-			exon_coord_in_braunch_transcript[result[0]].append(intron_name.flank_exon_right())
-		exon_coord_in_braunch_transcript[result[0]] = list(set(exon_coord_in_braunch_transcript[result[0]]))
-		exon_coord_in_braunch_transcript[result[0]].sort(key=lambda x: x.split('-')[1])
+			intron_coord_in_braunch_transcript[coords]=[]
+			intron_coord_in_braunch_transcript[coords].append(intron_name.id)
 
 	file_in.close() 
 
-	return(intron_content,exon_coord_in_braunch_transcript)
+	return(intron_content,intron_coord_in_braunch_transcript)
 
 
 ###Fonction qui va parser le fichier GTf à partir de la base de données générée et récupérer les annotations dans un objet
@@ -203,12 +200,72 @@ def exon_construction(exon_content):
 				exon_coord_in_ensembl_transcript[transcript].append(exon)
 
 			exon_coord_in_ensembl_transcript[transcript].sort(key=lambda x: x.split('-')[1]) # Fonction de tri qui met les exons du CDS dans l'ordre en fonction des coordonnées
+
 		if stop_codon_control == 0: # Si le control vaut 0, c'est qu'on a pas de codon stop dans la séquence
 			number_CDS_no_stop +=1 # On ajoute donc +1 au compteur de transcrits sans codon stop
 	print(number_CDS_no_stop,'/',len(exon_content),' transcrits n\'ont pas de codon stop (',round((number_CDS_no_stop/len(exon_content))*100,2),'%)',sep='')
 	return(exon_coord_in_ensembl_transcript)
 
+def transform_exon_to_intron(exon_coord_in_ensembl_transcript,exon_content):
+	intron_coord_in_ensembl_transcript = {} # Dictionnaire qui va identifier des introns à un identifiant de transcrit
+	retrieve_transcript_with_coord = {} # Dictionnaire de coordonnées qui va enregistrer une coordonnée et à quel(s) transcrit(s) elle appartient
+	for transcript,liste_exon in exon_coord_in_ensembl_transcript.items():
+		liste_exon.sort(key=lambda x: x.split('-')[1])
+		for elmt in liste_exon:
+			if liste_exon.index(elmt)+1 != len(liste_exon): # Si notre élément n'est pas le dernier, on peut continuer
+				position_exon_left = liste_exon.index(elmt)
+				position_exon_right = int(position_exon_left)+1
+				#exon de gauche
+				regex = re.compile('^(chr[\w]+):[0-9]+-([0-9]+)')
+				result = regex.findall(liste_exon[position_exon_left])
+				exon_chr = result[0][0]
+				stop_left = result[0][1]
+				#exon de droite
+				regex = re.compile('^(chr[\w]+):([0-9]+)-[0-9]+')
+				result = regex.findall(liste_exon[position_exon_right])
+				start_right = result[0][1]
 
+				intron_coord = exon_chr+":"+str(stop_left)+"-"+str(start_right)
+				if transcript in intron_coord_in_ensembl_transcript:
+					intron_coord_in_ensembl_transcript[transcript].append(intron_coord)
+				else:
+					intron_coord_in_ensembl_transcript[transcript]=[]
+					intron_coord_in_ensembl_transcript[transcript].append(intron_coord)
+
+				if intron_coord in retrieve_transcript_with_coord:
+					retrieve_transcript_with_coord[intron_coord].append(transcript)
+				else:
+					retrieve_transcript_with_coord[intron_coord] = []
+					retrieve_transcript_with_coord[intron_coord].append(transcript)
+	return(intron_coord_in_ensembl_transcript,retrieve_transcript_with_coord)
+
+def retrieve_canonical_transcript(intron_coord_in_ensembl_transcript,intron_content,retrieve_transcript_with_coord):
+	canonical_transcripts = {}
+	count = 0
+	file_out = open('transcripts_no_match.txt',"w")
+	for B_transcript,intron_list in intron_content.items():
+		liste = []
+		for elmt in intron_list:
+			coords = elmt.formating_coord_for_exon()
+			if coords in retrieve_transcript_with_coord:
+				resultat = retrieve_transcript_with_coord[coords]
+				liste.extend(resultat)
+		liste = set(list(liste))
+		B_intron_list = []
+		[B_intron_list.append(elmt.formating_coord_for_exon()) for elmt in intron_list]
+		for elmt in liste:
+			E_intron_list = intron_coord_in_ensembl_transcript[elmt]
+			if B_intron_list == E_intron_list:
+				count+=1
+				canonical_transcripts[elmt]=B_transcript
+			else:
+				message = elmt+"\t"+B_transcript+"\t"+str(len(E_intron_list))+"\t"+str(len(B_intron_list))+"\n"
+				if len(E_intron_list)==len(B_intron_list):
+					print(elmt,":",E_intron_list)
+					print(B_transcript,":",B_intron_list)
+				file_out.write(message)
+	file_out.close()
+	return(canonical_transcripts)
 ###Parsing des éléments en argument ####
 create_db = True # Par defaut, gffutils va créer une base de donnée issue du fichier GTF pour le parser
 
@@ -234,7 +291,7 @@ print('Parsing de',intron_ens_file,'...')
 IDlist,list_Ensembl_ids = extract_ensembl_id(intron_ens_file)
 print('OK, IDs Ens associés aux IDs Introns')
 print('Parsing de',annotation_file,'...')
-intron_content,exon_coord_in_braunch_transcript = extract_coord(annotation_file)
+intron_content,intron_coord_in_braunch_transcript = extract_coord(annotation_file)
 print('Ok, annotations sur les Introns enregistrés')
 print('Parsing de',gtf_file,'via',gtf_db_file,'...')
 ###Création de la base de données du GTF si n'existe pas####
@@ -244,5 +301,5 @@ if create_db == True:
 	print('Database OK')
 exon_content = parsing_GTF(gtf_db_file,list_Ensembl_ids)
 exon_coord_in_ensembl_transcript = exon_construction(exon_content)
-
-
+intron_coord_in_ensembl_transcript,retrieve_transcript_with_coord = transform_exon_to_intron(exon_coord_in_ensembl_transcript,exon_content)
+canonical_transcripts = retrieve_canonical_transcript(intron_coord_in_ensembl_transcript,intron_content,retrieve_transcript_with_coord)
