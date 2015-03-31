@@ -236,10 +236,10 @@ def extract_fasta_info(filename,intron_content,liste_transcripts,IDlist):
 				seq = seq.reverse_complement()
 			CDS_id = ExonInfoComplete(CDS_id.chr,CDS_id.start,CDS_id.stop,CDS_id.strand,CDS_id.transcript,CDS_id.exon_number,CDS_id.gene_id,CDS_id.feature_type,str(seq))
 			if CDS_id.transcript in exon_by_transcripts:
-				exon_by_transcripts[CDS_id.transcript].append(CDS_id.id)
+				exon_by_transcripts[CDS_id.transcript].append([CDS_id.id,CDS_id.formating_coord()])
 			else:
 				exon_by_transcripts[CDS_id.transcript] = [] # On définit la valeur comme étant une liste si elle n'était pas définie avant
-				exon_by_transcripts[CDS_id.transcript].append(CDS_id.id)
+				exon_by_transcripts[CDS_id.transcript].append([CDS_id.id,CDS_id.formating_coord()])
 			dataset_exon[CDS_id.id] = CDS_id
 
 	return(dataset_intron,exon_by_transcripts,dataset_exon)
@@ -247,75 +247,82 @@ def extract_fasta_info(filename,intron_content,liste_transcripts,IDlist):
 #Fonction va parcourir notre liste d'identifiants de transcrits pour chaque gène et associer les introns de notre jeu de données
 def junction_introns_to_transcripts(exon_by_transcripts,dataset_exon,coord_to_intron):
 	intron_by_transcripts = {} # Dictionnaire qui contiendra la liste des identifiant des introns dans chaque transcrit
-	transcript_content = {} # Dictionnaire qui va contenir dans l'ordre les éléments du transcrit exon1+intron1+exon2+intron2 ...
 	number_CDS_no_stop = 0 # On définit un compteur pour chaque fois ou un transcrit n'a pas de codon stop -> assemblage incomplet 
 	for Transcript_id,exons in exon_by_transcripts.items():
 		stop_codon_control = 0 # Control pour savoir si le transcrit possède un codon stop
 
-		exons.sort(key=lambda x: x.split(':')[2]) # Fonction de tri qui met les exons du CDS dans l'ordre en fonction des coordonnées
-		
-
+		exons.sort(key=lambda x: x[0].split(':')[2]) # Fonction de tri qui met les exons du CDS dans l'ordre en fonction des coordonnées
+		exons_without_stop = []
 		for elmt in exons:
+			#Vérification si transcrit possède un codon stop
+			exon_left = dataset_exon[elmt[0]]
+			if exon_left.feature_type == 'stop_codon':
+				stop_codon_control += 1 #Si oui on met +1 au control
+			else:
+				exons_without_stop.append(elmt)
+
+		for elmt in exons_without_stop:
 			if exons.index(elmt)+1 != len(exons): # Si notre élément n'est pas le dernier, on peut continuer
-				transcript_content[Transcript_id]=[] # On définit la clé transcrit comme étant une liste
 				position_exon_left = exons.index(elmt)
 				position_exon_right = int(position_exon_left)+1
-				exon_left = dataset_exon[elmt]
-				exon_right = dataset_exon[exons[position_exon_right]]
-				#Vérification si transcrit possède un codon stop
-				if exon_left.feature_type == 'stop_codon':
-					stop_codon_control += 1 #Si oui on met +1 au control
+				exon_left = dataset_exon[elmt[0]]
+				exon_right = dataset_exon[exons[position_exon_right][0]]
+				
 				intron_coord = "chr"+exon_left.chr+":"+str(int(exon_left.stop))+"-"+str(int(exon_right.start)+2)
-				transcript_content[Transcript_id].append(exon_left.id)
+				#Vu qu'on peut avoir plusieurs introns pour les mêmes coordonnées, on doit parcourir cette liste et choisir le bon intron
 				if intron_coord in coord_to_intron:
 					intron_list = coord_to_intron[intron_coord]
-					transcript_content[Transcript_id].append(intron_list[0])
-					# for intron in intron_list:
-					# 	if Transcript_id in intron_by_transcripts:
-					# 		intron_by_transcripts[Transcript_id].append(intron)
-					# 	else:
-					# 		intron_by_transcripts[Transcript_id]=[]
-					# 		intron_by_transcripts[Transcript_id].append(intron)
-					if Transcript_id in intron_by_transcripts:
-						intron_by_transcripts[Transcript_id].append(intron_list[0])
-					else:
-						intron_by_transcripts[Transcript_id]=[]
-						intron_by_transcripts[Transcript_id].append(intron_list[0])
-				transcript_content[Transcript_id].append(exon_right.id)
+					for intron in intron_list:
+						if Transcript_id in intron_by_transcripts:
+							intron_by_transcripts[Transcript_id].append(intron)
+						else:
+							intron_by_transcripts[Transcript_id]=[]
+							intron_by_transcripts[Transcript_id].append(intron)
+
 		if stop_codon_control == 0: # Si le control vaut 0, c'est qu'on a pas de codon stop dans la séquence
 			number_CDS_no_stop +=1 # On ajoute donc +1 au compteur de transcrits sans codon stop
 	
-	return(intron_by_transcripts,number_CDS_no_stop,transcript_content)
+	return(intron_by_transcripts,number_CDS_no_stop)
 
 ##Fonction qui va trier les introns de sorte à les lister par transcrits, puis qui va les comparer à la liste des transcrits ensembm, et vérifier
 ##Si la liste d'intron dans les deux listes sont égales, si c'est le cas, on considerera le transcrit ensembl comme le canonique pour notre jeu de données
 def retrieve_ensembl_transcript(dataset_intron,intron_by_transcripts):
-	group_by_intron={} # Dictionnaire qui contiendra la liste des introns appartenants au même transcrit
+	group_by_intron={} # Dictionnaire qui contiendra la liste des introns portant le même identifiant
+	transcript_no_match = {} # Dictionnaire qui contiendra la liste des transcrits n'étant pas considéré comme référence
 	#On parcours les identifiants pour déterminer le nombre d'introns présent dans notre jeu de données dans chaque gene
 	regex = re.compile('^[^:]+:(.+):[0-9]{,3}')
-	for key in intron_content:
+	for key,value in dataset_intron.items():
 		result = regex.findall(key)
+		intron_and_coord = [key,value.formating_coord_for_exon()]
 		if result[0] in group_by_intron:
-			group_by_intron[result[0]].append(key)
+			group_by_intron[result[0]].append(intron_and_coord)
 		else:
 			group_by_intron[result[0]]=[]
-			group_by_intron[result[0]].append(key)
+			group_by_intron[result[0]].append(intron_and_coord)
+		group_by_intron[result[0]].sort(key=lambda x: x[1].split(':')[1])
 
 	Canonical_Transcript = {} # Contient les identifiants des transcrits qui contiennent tous les introns d'un gène de notre jeu de données
 	for key,value in intron_by_transcripts.items():
-		value.sort(key=lambda x: x.split(':')[3])
-		introns_in_transcript = value
+
+		introns_in_transcript = value # Liste des introns dans chaque transcrit
 		result = regex.findall(introns_in_transcript[0])
 
 		if result[0] in group_by_intron:
-			introns_by_group = group_by_intron[result[0]]
+			introns_by_group = []
+			[introns_by_group.append(elmt[0]) for elmt in group_by_intron[result[0]] ] # On prend uniquement l'identifiant pour comparer
 		else:
 			print('Le transcrit',key,'ne contient pas d\'introns de notre jeu de données')
 			continue
-		introns_by_group.sort(key=lambda x: x.split(':')[3])
 		if introns_by_group == introns_in_transcript:
 			Canonical_Transcript[key] = result[0]
-	return(Canonical_Transcript)
+		else:
+			transcript_no_match[key]=value
+	return(Canonical_Transcript,transcript_no_match)
+
+def get_CDS_by_canonical_transcript(dataset_intron,dataset_exon,exon_by_transcripts,Canonical_Transcript):
+	for transcript,introns in Canonical_Transcript.items():
+		exon_list = exon_by_transcripts[transcript]
+		intron_list = introns
 
 
 ###Parsing des éléments en argument ####
@@ -358,7 +365,7 @@ if create_db == False:
 	db = gffutils.create_db(result[0], dbfn=gtf_db_file, force=True, keep_order=True,merge_strategy='merge', sort_attribute_values=True)
 	print('Database OK')
 liste_transcripts = parsing_GTF(file_out_name,gtf_db_file)
-print('Ok, annotations sur les CDS enregistrés')
+print('Ok, annotations sur les transcrits enregistrés')
 print('Lancement de TwobitToFa -> Récupération des séquences fasta via les coordonnées ...')
 if os.path.isfile(output_fasta):
 	print("Fichier fasta déjà existant, passe à l'étape suivante.")
@@ -370,10 +377,10 @@ os.unlink(file_out_name) # Suprimme le fichier BED temporaire
 print('Extraction des séquences ...')
 dataset_intron,exon_by_transcripts,dataset_exon = extract_fasta_info(filename=output_fasta,intron_content=intron_content,liste_transcripts=liste_transcripts,IDlist=IDlist)
 print('Ok, séquences enregistrés dans les annotations')	
-intron_by_transcripts,number_CDS_no_stop,transcript_content = junction_introns_to_transcripts(exon_by_transcripts,dataset_exon,coord_to_intron)
+intron_by_transcripts,number_CDS_no_stop = junction_introns_to_transcripts(exon_by_transcripts,dataset_exon,coord_to_intron)
 print(number_CDS_no_stop,'/',len(exon_by_transcripts),' transcrits n\'ont pas de codon stop (',round((number_CDS_no_stop/len(exon_by_transcripts))*100,2),'%)',sep='')
 print(len(intron_by_transcripts),'/',len(exon_by_transcripts),' transcrits possèdent des introns de nos jeux de données (',round((len(intron_by_transcripts)/len(exon_by_transcripts))*100,2),'%)',sep='')
-Canonical_Transcript = retrieve_ensembl_transcript(dataset_intron,intron_by_transcripts)
+Canonical_Transcript,transcript_no_match = retrieve_ensembl_transcript(dataset_intron,intron_by_transcripts)
 print(len(Canonical_Transcript),'/',len(exon_by_transcripts),' transcrits sont identifiés comme étant les canoniques (',round((len(Canonical_Transcript)/len(exon_by_transcripts))*100,2),'%)',sep='')
 
 
