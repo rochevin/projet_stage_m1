@@ -23,7 +23,7 @@ import gffutils # On importe gffutils pour parser le fichier GTF
 
 class ExonInfo(object):
 	"Classe contenant les données de chaque CDS (exon sans 5'-UTR/3' UTR)"
-	def __init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type):
+	def __init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type,transcript_name):
 
 		self.id = cds_transcript+":"+cds_exon_number+":"+str(cds_start)+"-"+str(cds_stop)+":"+feature_type
 		self.chr = cds_chr
@@ -34,6 +34,7 @@ class ExonInfo(object):
 		self.exon_number = cds_exon_number
 		self.gene_id = gene_id
 		self.feature_type = feature_type
+		self.transcript_name = transcript_name
 
 	def formating_coord(self):
 		return "chr"+self.chr+":"+str(self.start)+"-"+str(self.stop)
@@ -44,8 +45,8 @@ class ExonInfo(object):
 
 class ExonInfoComplete(ExonInfo):
 	"Classe contenant les mêmes informations que ExonInfo avec la séquence en plus"
-	def __init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type,seq):
-		ExonInfo.__init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type)
+	def __init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type,transcript_name,seq):
+		ExonInfo.__init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type,transcript_name)
 		self.seq = seq
 
 
@@ -118,7 +119,7 @@ def extract_ensembl_id(file_name):
 
 
 ###On définit une fonction qui va extraire les annotations et enregistrer les coordonnées au format BED
-def extract_coord(file_name):
+def extract_coord(file_name,IDlist):
 	intron_content = {} # dictionnaire qui va contenir les objets issues de IntronInfoAnnotate
 	coord_to_intron = {} # dictionnaire qui contient en clé les coordonnées de nos introns et en valeur l'identifiant de chaque intron
 
@@ -131,18 +132,19 @@ def extract_coord(file_name):
 		content=line.split("\t") #On split le contenu dans une liste
 		intron_name = content[0] #On récupère le nom de l'intron
 		#On enregistre les annotations dans un objet
-		intron_name = IntronInfoAnnotate(content[0],content[1],content[2],content[3],content[4],content[5],content[6],content[7],content[8],content[9],content[10].replace('\n', ''))
-		#On enregistre l'objet dans le dictionnaire avec son identifiant comme clé
-		intron_content[intron_name.id]=intron_name
-		#On enregistre les coordonnées de l'intron dans le dictionnaire qui va identifier un intron à ses coordonnées via son identifiant
-		if intron_name.formating_coord_for_exon() in coord_to_intron:
-			coord_to_intron[intron_name.formating_coord_for_exon()].append(intron_name.id)
-		else:
-			coord_to_intron[intron_name.formating_coord_for_exon()]=[]
-			coord_to_intron[intron_name.formating_coord_for_exon()].append(intron_name.id)
-		# Écriture du fichier BED
-		file_out.write(intron_name.BED_coord())
-		file_out.write("\n")
+		if intron_name in IDlist: # On vérifie que l'intron est annoté d'un gène, sinon cela ne nous intérèsse pas
+			intron_name = IntronInfoAnnotate(content[0],content[1],content[2],content[3],content[4],content[5],content[6],content[7],content[8],content[9],content[10].replace('\n', ''))
+			#On enregistre l'objet dans le dictionnaire avec son identifiant comme clé
+			intron_content[intron_name.id]=intron_name
+			#On enregistre les coordonnées de l'intron dans le dictionnaire qui va identifier un intron à ses coordonnées via son identifiant
+			if intron_name.formating_coord_for_exon() in coord_to_intron:
+				coord_to_intron[intron_name.formating_coord_for_exon()].append(intron_name.id)
+			else:
+				coord_to_intron[intron_name.formating_coord_for_exon()]=[]
+				coord_to_intron[intron_name.formating_coord_for_exon()].append(intron_name.id)
+			# Écriture du fichier BED
+			file_out.write(intron_name.BED_coord())
+			file_out.write("\n")
 	file_in.close() 
 	file_out.close()
 	return(intron_content,file_out_name,coord_to_intron)
@@ -174,7 +176,7 @@ def parsing_GTF(temporary_file_name,db_name):
 				if i.featuretype =="stop_codon":
 					compteur_stop =1
 				id_CDS = i.attributes['exon_number'][0]+":"+i.attributes['transcript_id'][0]+":"+i.featuretype
-				id_CDS = ExonInfo(cds_chr=i.seqid,cds_start=i.start,cds_stop=i.stop,cds_strand=i.strand,cds_transcript=i.attributes['transcript_id'][0],cds_exon_number=i.attributes['exon_number'][0],gene_id=id_ENS,feature_type=i.featuretype)
+				id_CDS = ExonInfo(cds_chr=i.seqid,cds_start=i.start,cds_stop=i.stop,cds_strand=i.strand,cds_transcript=i.attributes['transcript_id'][0],cds_exon_number=i.attributes['exon_number'][0],gene_id=id_ENS,feature_type=i.featuretype,transcript_name=i.attributes['transcript_name'][0])
 				if i.attributes['transcript_id'][0] in liste_transcripts:
 					liste_transcripts[i.attributes['transcript_id'][0]].append(id_CDS)
 				else:
@@ -234,7 +236,7 @@ def extract_fasta_info(filename,intron_content,liste_transcripts,IDlist):
 
 			if CDS_id.strand == "-":
 				seq = seq.reverse_complement()
-			CDS_id = ExonInfoComplete(CDS_id.chr,CDS_id.start,CDS_id.stop,CDS_id.strand,CDS_id.transcript,CDS_id.exon_number,CDS_id.gene_id,CDS_id.feature_type,str(seq))
+			CDS_id = ExonInfoComplete(CDS_id.chr,CDS_id.start,CDS_id.stop,CDS_id.strand,CDS_id.transcript,CDS_id.exon_number,CDS_id.gene_id,CDS_id.feature_type,CDS_id.transcript_name,str(seq))
 			if CDS_id.transcript in exon_by_transcripts:
 				exon_by_transcripts[CDS_id.transcript].append([CDS_id.id,CDS_id.formating_coord()])
 			else:
@@ -273,11 +275,13 @@ def junction_introns_to_transcripts(exon_by_transcripts,dataset_exon,coord_to_in
 				if intron_coord in coord_to_intron:
 					intron_list = coord_to_intron[intron_coord]
 					for intron in intron_list:
-						if Transcript_id in intron_by_transcripts:
-							intron_by_transcripts[Transcript_id].append(intron)
-						else:
-							intron_by_transcripts[Transcript_id]=[]
-							intron_by_transcripts[Transcript_id].append(intron)
+						name = intron.split(":")[1]
+						if re.search(name , exon_left.transcript_name):
+							if Transcript_id in intron_by_transcripts:
+								intron_by_transcripts[Transcript_id].append(intron_coord)
+							else:
+								intron_by_transcripts[Transcript_id]=[]
+								intron_by_transcripts[Transcript_id].append(intron_coord)
 
 		if stop_codon_control == 0: # Si le control vaut 0, c'est qu'on a pas de codon stop dans la séquence
 			number_CDS_no_stop +=1 # On ajoute donc +1 au compteur de transcrits sans codon stop
@@ -356,7 +360,7 @@ print('Parsing de',intron_ens_file,'...')
 IDlist,list_Ensembl_ids = extract_ensembl_id(intron_ens_file)
 print('OK, IDs Ens associés aux IDs Introns')
 print('Parsing de',annotation_file,'...')
-intron_content,file_out_name,coord_to_intron = extract_coord(annotation_file)
+intron_content,file_out_name,coord_to_intron = extract_coord(annotation_file,IDlist)
 print('Ok, annotations sur les Introns enregistrés')
 print('Parsing de',gtf_file,'via',gtf_db_file,'...')
 ###Création de la base de données du GTF si n'existe pas####
