@@ -26,14 +26,6 @@ class ExonInfo(object):
 		return "chr"+self.chr+":"+str(self.start)+"-"+str(self.stop)
 
 
-
-class ExonInfoComplete(ExonInfo):
-	"Classe contenant les mêmes informations que ExonInfo avec la séquence en plus"
-	def __init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type,seq):
-		ExonInfo.__init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type)
-		self.seq = seq
-
-
 class IntronInfoAnnotate(object):
 	"Classe contenant les données des introns annotées générées via script précédent"
 	def __init__(self,Intron_id,Intron_coord,Intron_type,Intron_txRegion,Intron_PTCstatus,seq_annotation_begin,seq_annotation_end,intron_len,intron_position,total_intron,GCrate):
@@ -78,16 +70,6 @@ class IntronInfoAnnotate(object):
 	def BED_coord(self):
 		return self.chr+"\t"+str(self.debut)+"\t"+str(self.fin)+"\t"+self.id
 
-
-class IntronInfoComplete(IntronInfoAnnotate):
-		"Classe contenant les informations des introns de la classe parente + seq + ID Ensembl"
-
-		def __init__(self,Intron_id,Intron_coord,Intron_type,Intron_txRegion,Intron_PTCstatus,seq_annotation_begin,seq_annotation_end,intron_len,intron_position,total_intron,GCrate,seq,ensembl):
-			IntronInfoAnnotate.__init__(self,Intron_id,Intron_coord,Intron_type,Intron_txRegion,Intron_PTCstatus,seq_annotation_begin,seq_annotation_end,intron_len,intron_position,total_intron,GCrate)
-			self.seq = seq
-			self.ensembl = ensembl
-
-
 ###Fonction qui va extraire les identifiant de genes Ensembl associés à notre jeu d'intron et les associer à leur identifiants ainsi qu'être listés pour parser le GTF
 def extract_ensembl_id(file_name):
 	IDlist = {} # Dictionnaire contenant en clé l'id de l'intron et en valeur l'id Ensembl
@@ -113,7 +95,7 @@ def extract_coord(file_name,IDlist):
 		content=line.split("\t") #On split le contenu dans une liste
 		intron_name = content[0] #On récupère le nom de l'intron
 		#On vérifie que l'intron est annoté d'un gène, sinon cela ne nous sert à rien de l'enregistrer
-		if intron_name in IDlist:
+		if IDlist[intron_name] != "NA":
 			#On enregistre les annotations dans un objet
 			intron_name = IntronInfoAnnotate(content[0],content[1],content[2],content[3],content[4],content[5],content[6],content[7],content[8],content[9],content[10].replace('\n', ''))
 			#On enregistre l'objet dans le dictionnaire avec l'identifiant de transcrit Braunch comme clé
@@ -237,10 +219,7 @@ def transform_exon_to_intron(exon_coord_in_ensembl_transcript,exon_content):
 
 def retrieve_canonical_transcript(intron_coord_in_ensembl_transcript,intron_content,retrieve_transcript_with_coord):
 	canonical_transcripts = {}
-	count = 0
-	file_out = open('transcripts_no_match.txt',"w")
-	header = "Ensembl_Transcript\tBraunschweig_Transcript\tIntron_number_Ensembl\tIntron_number_Braunschweig\n"
-	file_out.write(header)
+
 	for B_transcript,intron_list in intron_content.items():
 		liste = [] # Liste qui va servir à augmenter la rapidité du parcours en cherchant les identifiants ensembl associés à nos coordonnées
 		for elmt in intron_list:
@@ -254,16 +233,11 @@ def retrieve_canonical_transcript(intron_coord_in_ensembl_transcript,intron_cont
 		#On transforme les objets intron en coordonnées
 		[B_intron_list.append(elmt.formating_coord_for_exon()) for elmt in intron_list]
 		B_intron_list.sort(key=lambda x: x.split('-')[1])
+		success = 0
 		for elmt in liste:
 			E_intron_list = intron_coord_in_ensembl_transcript[elmt]
 			if B_intron_list == E_intron_list:
-				count+=1
 				canonical_transcripts[elmt]=B_transcript
-			else:
-				message = elmt+"\t"+B_transcript+"\t"+str(len(E_intron_list))+"\t"+str(len(B_intron_list))+"\n"
-				if len(E_intron_list)==len(B_intron_list):
-					file_out.write(message)
-	file_out.close()
 	return(canonical_transcripts)
 
 #Fonction qui détermine les doublons de notre jeu de données
@@ -296,61 +270,6 @@ def transform_intron_to_exon(intron_content):
 
 	return(exon_coord_in_braunch_transcript)
 
-#Fonction qui va associer une coordonnée d'exon à une liste de transcrits ensembl -> sert a up la rapidité du parcours
-def exon_coord_by_transcript(exon_content):
-	coord_to_transcript = {} # Contient une coordonnée et un identifiant Ensembl se rapportant à ces coordonnées d'exons
-	for transcript,exon_list in exon_content.items():
-		for elmt in exon_list:
-			coords = elmt.formating_coord()
-			if coords in coord_to_transcript:
-				coord_to_transcript[coords].append(transcript)
-			else:
-				coord_to_transcript[coords]=[]
-				coord_to_transcript[coords].append(transcript)
-	return(coord_to_transcript)
-
-
-def retrieve_transcripts_with_exon_coord(exon_coord_in_braunch_transcript,exon_coord_in_ensembl_transcript,coord_to_transcript):
-	canonical_with_exon = {}
-	for B_transcript,B_intron_list in exon_coord_in_braunch_transcript.items():
-		liste = [] # Liste qui va servir à augmenter la rapidité du parcours en cherchant les identifiants ensembl associés à nos coordonnées
-		for elmt in B_intron_list:
-			if elmt in coord_to_transcript:
-				resultat = coord_to_transcript[elmt]
-				liste.extend(resultat)
-		#On suprimme les doublons
-		liste = list(set(liste))
-		for E_transcript in liste:
-			E_intron_list = exon_coord_in_ensembl_transcript[E_transcript]
-			if B_intron_list == E_intron_list:
-				canonical_with_exon[E_transcript]=B_transcript
-			else:
-				if len(E_intron_list) == len(B_intron_list):
-					sE = set(E_intron_list)
-					sB = set(B_intron_list)
-					resultE = [x for x in E_intron_list if x not in sB]
-					positionE = [(E_intron_list.index(x)+1) for x in E_intron_list if x not in sB]
-					resultB = [x for x in B_intron_list if x not in sE]
-					positionB = [(B_intron_list.index(x)+1) for x in B_intron_list if x not in sE]
-
-					listeE=[]
-					for elmt in resultE:
-						position = resultE.index(elmt)
-						jointure = (elmt,positionE[position])
-						listeE.append(jointure)
-					listeB=[]
-					for elmt in resultB:
-						position = resultB.index(elmt)
-						jointure = (elmt,positionB[position])
-						listeB.append(jointure)
-					if (len(resultE) != len(E_intron_list) and len(resultB) != len(B_intron_list)):
-						print(E_transcript," : ",len(resultE),'/',len(B_intron_list),sep='')
-						print(listeE)
-						print(B_transcript," : ",len(resultB),'/',len(B_intron_list),sep='')
-						print(listeB)
-					print("##################################################")
-	return(canonical_with_exon)
-
 # Fonction qui va identifier le transcrit le plus proche parmis les doublons
 def scoring_doublon(doublon,exon_coord_in_braunch_transcript,exon_coord_in_ensembl_transcript):
 	best_score = {} # Va contenir pour chaque transcrit braunch quel transcrit Ensembl est le plus proche
@@ -382,12 +301,43 @@ def scoring_doublon(doublon,exon_coord_in_braunch_transcript,exon_coord_in_ensem
 		best_E_transcript = best_score_for_transcript[min(best_score_for_transcript)]
 		best_score[B_transcript] = best_E_transcript
 	return(best_score)
+
+def join_best_score_with_canonical(best_score,dictionnary_without_redondance):
+	new_canonical_transcript = {} # Dictionnaire final qui va contenir les transcrits Braunch et a quel Transcrit Ensembl il appartient sans doublon
+	new_canonical_transcript = dictionnary_without_redondance.copy() # Ajoute les données du dictionnaire avec les doublons
+	new_canonical_transcript.update(best_score) # Puis remplace les doublons par l'identifiant calculé par notre score
+	return(new_canonical_transcript)
+
+def write_file_for_canonical_transcript(new_canonical_transcript,output_file,exon_content,intron_content):
+	file_out = open(output_file,"w")
+	header = "Braunschweig id\tEnsembl id\t Gene id\tIntron number\tExon number\n"
+	file_out.write(header)
+	for B_id,E_id in new_canonical_transcript.items():
+		if type(E_id) == list:
+			E_id = E_id[0]
+		exon_number = len(exon_content[E_id])
+		intron_number = len(intron_content[B_id])
+		gene_id = exon_content[E_id][0].gene_id
+		message=B_id+"\t"+E_id+"\t"+gene_id+"\t"+str(intron_number)+"\t"+str(exon_number)+"\n"
+		file_out.write(message)
+	file_out.close()
+
+def write_file_for_no_match_transcript(new_canonical_transcript,intron_content,exon_coord_in_braunch_transcript,no_match_file_name):
+	file_out = open(no_match_file_name,"w")
+	header = "Transcript id\tIntron number\n"
+	file_out.write(header)
+	for key,value in intron_content.items():
+		if not key in new_canonical_transcript:
+			message = key+"\t"+str(len(value))+"\n"
+			file_out.write(message)
+	file_out.close()
+
 ###Parsing des éléments en argument ####
 create_db = True # Par defaut, gffutils va créer une base de donnée issue du fichier GTF pour le parser
 
-opts, args = getopt.getopt(sys.argv[1:],'o:',['annotation=','intron_ens=','gtf=','gtfdb='])
+opts, args = getopt.getopt(sys.argv[1:],'',['output_file=','annotation=','intron_ens=','gtf=','gtfdb=','no_match='])
 for elmts in opts:
-	if elmts[0] == '-o':
+	if elmts[0] == '--output_file':
 		output_file = elmts[1] # Nom du fichier de sortie
 
 	elif elmts[0] == '--annotation':
@@ -403,12 +353,15 @@ for elmts in opts:
 		create_db = False
 		gtf_db_file = elmts[1]
 
+	elif elmts[0] == '--no_match': # On demande un nom de fichier pour la liste des transcrits qui ne concordent pas
+		no_match_file_name = elmts[1]
+
 print('Parsing de',intron_ens_file,'...')
 IDlist,list_Ensembl_ids = extract_ensembl_id(intron_ens_file)
 print('OK, IDs Ens associés aux IDs Introns')
 print('Parsing de',annotation_file,'...')
 intron_content= extract_coord(annotation_file,IDlist)
-print('Ok, annotations sur les Introns enregistrés')
+print('Ok, annotations sur les transcrits Braunschweig enregistrés')
 print('Parsing de',gtf_file,'via',gtf_db_file,'...')
 ###Création de la base de données du GTF si n'existe pas####
 if create_db == True:
@@ -416,14 +369,22 @@ if create_db == True:
 	db = gffutils.create_db(result[0], dbfn=gtf_db_file, force=True, keep_order=True,merge_strategy='merge', sort_attribute_values=True)
 	print('Database OK')
 exon_content = parsing_GTF(gtf_db_file,list_Ensembl_ids)
+print('Ok, annotations sur les transcrits Ensembl enregistrés')
 exon_coord_in_ensembl_transcript = exon_construction(exon_content)
+print('Récupération des introns des transcrits Ensembl à partir des exons ...')
 intron_coord_in_ensembl_transcript,retrieve_transcript_with_coord = transform_exon_to_intron(exon_coord_in_ensembl_transcript,exon_content)
+print('OK, construction des introns pour chaque transcrit Ensembl terminé')
+print('Détermination de l\'identifiant Ensembl correspondant au transcrit de Braunschweig ...')
 canonical_transcripts = retrieve_canonical_transcript(intron_coord_in_ensembl_transcript,intron_content,retrieve_transcript_with_coord)
-
-
-###suite du programme en test :
+print('Détermination des doublons pour éviter la redondance ...')
 doublon,dictionnary_without_redondance = determine_doublons(canonical_transcripts)
+print(len(dictionnary_without_redondance),'/',len(intron_content),' transcrits de Braunschweig associés aux transcrits d\'Ensembl',sep='')
+print('Calcul du score pour déterminer le transcrit Ensembl le plus proche du transcrit de Braunschweig dans les doublons ...')
 exon_coord_in_braunch_transcript = transform_intron_to_exon(intron_content)
-# coord_to_transcript = exon_coord_by_transcript(exon_content)
-# canonical_with_exon = retrieve_transcripts_with_exon_coord(exon_coord_in_braunch_transcript,exon_coord_in_ensembl_transcript,coord_to_transcript)
 best_score = scoring_doublon(doublon,exon_coord_in_braunch_transcript,exon_coord_in_ensembl_transcript)
+new_canonical_transcript = join_best_score_with_canonical(best_score,dictionnary_without_redondance)
+print('Doublons éliminés, liste des transcrits Braunschweig associés à un transcrit Ensembl :',len(new_canonical_transcript))
+print('Écriture du fichier',output_file,'=> Transcrits de référence')
+write_file_for_canonical_transcript(new_canonical_transcript,output_file,exon_content,intron_content)
+print('Écriture du fichier',no_match_file_name,'=> Transcrits sans identifiants Ensembl')
+write_file_for_no_match_transcript(new_canonical_transcript,intron_content,exon_coord_in_braunch_transcript,no_match_file_name)
