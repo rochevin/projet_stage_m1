@@ -9,8 +9,8 @@ import gffutils # On importe gffutils pour parser le fichier GTF
 ####Définition des classes######
 # Classe contenant les annotations sur l'exon d'un transcrit Ensembl
 class ExonInfo(object):
-	"Classe contenant les données de chaque CDS (exon sans 5'-UTR/3' UTR)"
-	def __init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type):
+	"Classe contenant les données de chaque exons"
+	def __init__(self,cds_chr,cds_start,cds_stop,cds_strand,cds_transcript,cds_exon_number,gene_id,feature_type,source):
 		# Identifiant de l'exon construit à partir de l'id du transcrit, de sa position dans le transcrit, ses coordonnées et son type
 		self.id = cds_transcript+":"+cds_exon_number+":"+str(cds_start)+"-"+str(cds_stop)+":"+feature_type 
 		self.chr = cds_chr # Chromosome qui contient l'exon
@@ -21,6 +21,7 @@ class ExonInfo(object):
 		self.exon_number = cds_exon_number # Position de l'exon dans le transcrit par rapport aux autres exons
 		self.gene_id = gene_id # Identifiant du gène auquel appartient le transcrit de l'exon
 		self.feature_type = feature_type # Type de l'exon (CDS, exon, stop_codon)
+		self.source = source # Type du transcrit -> non_sense, protein_coding
 
 	def formating_coord(self): # Fonction pour afficher les coordonnées de l'exon d'une façon spécifique num_chr:start-stop
 		return "chr"+self.chr+":"+str(self.start)+"-"+str(self.stop)
@@ -143,7 +144,7 @@ def parsing_GTF(dbname,list_Ensembl_ids):
 					compteur_stop = 1
 				# On récupère les annotations de l'élément (exon ou codon stop) qu'on enregistre dans un objet
 				if_exon = i.attributes['exon_number'][0]+":"+i.attributes['transcript_id'][0]+":"+i.featuretype
-				if_exon = ExonInfo(cds_chr=i.seqid,cds_start=i.start,cds_stop=i.stop,cds_strand=i.strand,cds_transcript=i.attributes['transcript_id'][0],cds_exon_number=i.attributes['exon_number'][0],gene_id=id_ENS,feature_type=i.featuretype)
+				if_exon = ExonInfo(cds_chr=i.seqid,cds_start=i.start,cds_stop=i.stop,cds_strand=i.strand,cds_transcript=i.attributes['transcript_id'][0],cds_exon_number=i.attributes['exon_number'][0],gene_id=id_ENS,feature_type=i.featuretype,source=i.source)
 				# Puis on enregistre l'élément dans le dictionnaire via son identifiant de transcrit
 				# Ex : Transcrit_id : exon1,exon2,exon3,stop_codon
 				if i.attributes['transcript_id'][0] in exon_content:
@@ -367,15 +368,15 @@ def join_best_score_with_canonical(best_score,dictionnary_without_redondance):
 ### Fonction qui va écrire les transcrits de référence dans un fichier
 def write_file_for_canonical_transcript(new_canonical_transcript,output_file,exon_content,intron_content):
 	file_out = open(output_file,"w")
-	header = "Braunschweig id\tEnsembl id\t Gene id\tIntron number\tExon number\n"
+	header = "Braunschweig id\tEnsembl id\t Gene id\tChr\tStrand\ttype\tIntron number\tExon number\n"
 	file_out.write(header)
 	for B_id,E_id in new_canonical_transcript.items():
 		if type(E_id) == list:
 			E_id = E_id[0]
 		exon_number = len(exon_content[E_id])
+		first_exon = exon_content[E_id][0] # On récupère le premier exon pour récupérer le brin et son type (protein coding)
 		intron_number = len(intron_content[B_id])
-		gene_id = exon_content[E_id][0].gene_id
-		message=B_id+"\t"+E_id+"\t"+gene_id+"\t"+str(intron_number)+"\t"+str(exon_number)+"\n"
+		message=B_id+"\t"+E_id+"\t"+first_exon.gene_id+"\t"+"chr"+first_exon.chr+"\t"+first_exon.strand+"\t"+first_exon.source+"\t"+str(intron_number)+"\t"+str(exon_number)+"\n"
 		file_out.write(message)
 	file_out.close()
 
