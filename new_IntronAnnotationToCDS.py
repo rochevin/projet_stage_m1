@@ -77,7 +77,7 @@ class IntronInfoAnnotate(object):
 		coord_exon_right = result[0][0]+":"+result[0][1]+"-"+result[0][2]
 		return coord_exon_right
 	def BED_coord(self): # Converti les coordonnées au format BED
-		return self.chr+"\t"+str(self.debut)+"\t"+str(self.fin)+"\t"+self.id
+		return self.chr+"\t"+str(self.debut-1)+"\t"+str(self.fin)+"\t"+self.id
 
 
 # Classe contenant les annotations sur l'exon d'un transcrit Ensembl
@@ -98,6 +98,9 @@ class ExonInfo(object):
 
 	def formating_coord(self): # Fonction pour afficher les coordonnées de l'exon d'une façon spécifique num_chr:start-stop
 		return "chr"+self.chr+":"+str(self.start)+"-"+str(self.stop)
+
+	def BED_coord(self): # Converti les coordonnées au format BED
+		return self.chr+"\t"+str(self.start-1)+"\t"+str(self.stop)+"\t"+self.id
 
 ### On récupère les transcrits de référence
 def get_canonical_transcript(file_name):		
@@ -178,6 +181,9 @@ def parsing_GTF(dbname,canonical_list):
 	print(count,'/',len(inversed_canonical_list),' matchs',sep='')
 	# On retourne le dictionnaire contenant chaque transcrit et ses éléments (exon ou stop)
 	return(exon_content)
+def BED_writing(exon_content,intron_content):
+
+	file_out = tempfile.NamedTemporaryFile(mode="w+",delete=False,suffix='.bedPos')
 ###Parsing des éléments en argument ####
 create_db = False # Par defaut, gffutils va créer une base de donnée issue du fichier GTF pour le parser
 
