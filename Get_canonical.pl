@@ -31,6 +31,11 @@ unless ( open(exon_file_output, ">".$ARGV[1]) ) {
 }
 print exon_file_output "RefSeq\tEnsembl Transcript ID\tEnsembl Gene ID\tEnsembl Exon ID\tExon number\tChr\tStrand\tCoordinates\tCanonical\n";
 
+unless ( open(exon_no_match, ">".$ARGV[2]) ) {
+    print STDERR "Impossible de trouver $file_accession_output ...\n\n";
+    exit;
+}
+
 # my $fasta_file_out = ">".$ARGV[2];
 # my $out = Bio::SeqIO->new(-file => $fasta_file_out, -format => "Fasta");
 
@@ -53,27 +58,32 @@ foreach my$id (keys %transcript_list) {
 	my $canonical_transcript=$gene->canonical_transcript();
 	my $transcript = $canonical_transcript->stable_id();
 	if (exists $transcript_list{$id}{$transcript}) {
-		print $gene->stable_id()." => ".$canonical_transcript->stable_id()."\n";
+		# print $gene->stable_id()." => ".$canonical_transcript->stable_id()."\n";
 		my @content = get_all_exon_for_transcript($canonical_transcript,$transcript_list{$id}{$transcript},$id,"YES");
 		print exon_file_output $_ for @content;
 	}
 	else {
 		print sprintf ("%s n'est pas dans la liste des transcrits de %s\n", $transcript,$id);
 		$nb_trans_by_gene = scalar( keys %{$transcript_list{$id}});
-		next if ($nb_trans_by_gene > 1);
-		my @list_transcripts = @{ $gene->get_all_Transcripts };
-		foreach my$one_transcript (@list_transcripts) {
-			my $transcript_id = $one_transcript->stable_id();
-			next unless (exists $transcript_list{$id}{$transcript_id});
-			print "On a trouvé un remplaçant au canonique\n";
-			my @content = get_all_exon_for_transcript($one_transcript,$transcript_list{$id}{$transcript_id},$id,"NO");
-			print exon_file_output $_ for @content;
+		if ($nb_trans_by_gene <= 1) {
+			my @list_transcripts = @{ $gene->get_all_Transcripts };
+			foreach my$one_transcript (@list_transcripts) {
+				my $transcript_id = $one_transcript->stable_id();
+				next unless (exists $transcript_list{$id}{$transcript_id});
+				print $id." : On a trouvé un remplaçant au canonique\n";
+				my @content = get_all_exon_for_transcript($one_transcript,$transcript_list{$id}{$transcript_id},$id,"NO");
+				print exon_file_output $_ for @content;
+			}
+		}
+		else {
+			print exon_no_match $id."\t".$nb_trans_by_gene."\n";
 		}
 	}
 
 }
 
 close exon_file_output;
+close exon_no_match;
 # close cds_file_output;
 # $out->close();
 
@@ -95,6 +105,7 @@ sub get_all_exon_for_transcript {
 	}
 	return @content;
 }
+
 	# my $exon_number = 1;
 	# my @translateable_exons = @{ $canonical_transcript->get_all_translateable_Exons };
 	# while (my$exon = shift @translateable_exons) {
