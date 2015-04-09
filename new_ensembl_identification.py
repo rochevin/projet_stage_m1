@@ -54,7 +54,7 @@ class IntronInfoAnnotate(object):
 		return self.chr+":"+str(self.debut)+"-"+str(self.fin)
 
 	def formating_coord_for_exon(self): # Converti les coordonnées de l'intron pour retrouver les mêmes coordonnées lors de la construction d'intron d'Ensembl
-		return self.chr+":"+str(self.debut)+"-"+str(self.fin+1)
+		return str(self.debut)+"-"+str(self.fin+1)
 
 	def flank_exon_left(self): # Permet d'obtenir les coordonnées de l'exon flanquant gauche
 		regex = re.compile('^(chr[\w]+)[-\+]([0-9]+):([0-9]+)_[0-9]+:[0-9]+')
@@ -128,25 +128,34 @@ def transform_exon_to_intron(Dataset_Ensembl):
 	Ensembl_intron_coord = {} # Dictionnaire qui va transformer les coordonnées exoniques en introns afin de comparer les introns
 	retrieve_transcript_with_coord = {} # Dictionnaire de coordonnées qui va enregistrer une coordonnée et à quel(s) transcrit(s) elle appartient
 	for transcript,liste_exon in Dataset_Ensembl.items():
-		for exon in liste_exon:
+		liste_exon_coord = [] # On définit une nouvelle liste issue de liste_exon qui contiendra les coordonnées et non les objets
+		[liste_exon_coord.append(str(exon.start)+"-"+str(exon.end)) for exon in liste_exon]
+		# for exon in liste_exon:
+		# 	coord = str(exon.start)+"-"+str(exon.end)
+		# 	liste_exon_coord.append(coord)
+		liste_exon_coord.sort(key=lambda x: x.split('-')[1])
+		for exon_coord in liste_exon_coord:
 			# Si notre élément n'est pas le dernier, on peut continuer
-			if liste_exon.index(exon)+1 != len(liste_exon):
+			if liste_exon_coord.index(exon_coord)+1 != len(liste_exon_coord):
 				# On récupère l'exon suivant celui qu'on parcours
-				exon_left = exon
-				exon_right = liste_exon[liste_exon.index(exon)+1]
+				exon_left = exon_coord
+				exon_right = liste_exon_coord[liste_exon_coord.index(exon_coord)+1]
 				
-				position_exon_left = exon_left.end
-				position_exon_right = exon_right.start
-				chromosome = exon_left.chr
+				regex = re.compile('^[0-9]+-([0-9]+)')
+				result = regex.findall(exon_left)
+				position_exon_left = result[0]
 
-				intron_coord = chromosome+":"+str(position_exon_left)+"-"+str(position_exon_right)
+				regex = re.compile('^([0-9]+)-[0-9]+')
+				result = regex.findall(exon_right)
+				position_exon_right = result[0]
+
+				intron_coord = str(position_exon_left)+"-"+str(position_exon_right)
 
 				if transcript in Ensembl_intron_coord:
 					Ensembl_intron_coord[transcript].append(intron_coord)
 				else:
 					Ensembl_intron_coord[transcript]=[]
 					Ensembl_intron_coord[transcript].append(intron_coord)
-
 	return(Ensembl_intron_coord)
 
 
@@ -160,10 +169,9 @@ def verify_canonical_transcript(Ensembl_intron_coord,Dataset_Ensembl,Braunch_int
 			Ensembl_liste_introns.sort(key=lambda x: x.split('-')[1]) 
 			Braunch_liste_introns.sort(key=lambda x: x.split('-')[1])
 			if Braunch_liste_introns == Ensembl_liste_introns:
-				print('COUCOU')
 				match+=1
 			else:
-				print('PAS COUCOU')
+				print('###########################')
 				print(transcript)
 				print('Ensembl :',Ensembl_liste_introns)
 				print('Braunch :',Braunch_liste_introns)
