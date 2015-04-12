@@ -1,8 +1,13 @@
 ####################################################################
 #Auteur : ROCHER Vincent										   #
 #																   #
-#But : Programme principal										   #
-#	   Execute tous les autres									   #
+#But : Programme principal(remplace new_main.py)				   #
+#	   Ajoute nos propres annotations au jeu de données			   #
+#	   -Séquence d'intérêt en début et fin de séquence des introns #
+#	   -Taux de GC 												   #
+#	   -Taille de l'intron 										   #
+#	   -Position de l'intron (par rapport aux autres)			   #
+#	   -Nombre d'intron par transcrit							   #
 ####################################################################
 
 
