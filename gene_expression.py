@@ -2,7 +2,8 @@
 #Auteur : ROCHER Vincent										   #
 #																   #
 #But : Programme principal										   #
-#	   Execute tous les autres									   #
+#	   Fait la jointure entre le taux d'expression				   #
+#	   Et notre jeu d'intron									   #
 ####################################################################
 
 import sys,getopt #Pour pouvoir faire passer des arguments en ligne de commande
