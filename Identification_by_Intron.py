@@ -189,6 +189,7 @@ def transcript_information_file(file_name,Dataset_complete):
 def intron_annotation_file(file_name,Dataset_complete,Ens_data):
 	file_in=open(file_name,"w")
 	header = "Ensembl intron id\tRefSeq intron id\tTranscript id\tGene id\tCoordinates\n"
+	file_in.write(header)
 	for trans_id,intron_list in Dataset_complete.items():
 		for intron_annotation in intron_list:
 			intron_id = intron_annotation[0]
