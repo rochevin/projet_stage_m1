@@ -2,14 +2,6 @@ import sys, getopt # Sert à récupérer les noms de fichiers en arguments
 import re # On importe re pour expression régulière
 import os # On importe os pour éxecuter des commandes terminal dans python
 
-class IntronBraunch(object):
-	"Classe contenant l'id de l'intron, ses coordonnées et les id Gene et Transcript d'ensembl"
-	def __init__(self,intron_id,gene_id,trans_id,coords):
-		self.id = intron_id
-		self.gene_id = gene_id
-		self.trans_id = trans_id
-		self.coords = coords
-
 
 class IntronEns(object):
 	"Classe contenant l'id de l'intron, ses coordonnées et les id Gene et Transcript d'ensembl"
@@ -104,10 +96,10 @@ def complete_annotation(Ens_data,Dataset_all_canonical):
 					Dataset_complete[key].append((intron_ens[0],braunch_ids))
 			else:
 				if key in Dataset_complete:
-					Dataset_complete[key].append((intron_ens[0],"None"))
+					Dataset_complete[key].append((intron_ens[0],"NA"))
 				else:
 					Dataset_complete[key]=[]
-					Dataset_complete[key].append((intron_ens[0],"None"))
+					Dataset_complete[key].append((intron_ens[0],"NA"))
 		if verif == 0:
 			nomatch+=1
 		elif verif >= 1:
@@ -152,13 +144,85 @@ def no_doublon(Dataset_complete,more_one_id):
 				complete_id = [elmt for elmt in liste_id_braunch if re.search(best_id, elmt)]
 				Dataset_without_doublon[key].append((id_ens,complete_id))
 			else:
-				Dataset_without_doublon[key].append((id_ens,"None"))
+				Dataset_without_doublon[key].append((id_ens,"NA"))
 	return(Dataset_without_doublon)
 
+def fusion_dataset(Dataset_complete,Dataset_without_doublon):
+	for trans_id,intron_list in Dataset_without_doublon.items():
+		Dataset_complete[trans_id]=intron_list
+	return(Dataset_complete)
 
-Ens_coord,Ens_data = extract_Ens_intron_coord(sys.argv[1])
-Braunch_intron,Braunch_coord = extract_Braunch_intron(sys.argv[2])
+#Fonction qui va créer un fichier contenant la liste des transcrits ensembl annotés, indiquer si celui-ci est complètement ou partiellement annoté
+def transcript_information_file(file_name,Dataset_complete):
+	file_in=open(file_name,"w")
+	header = "Ensembl Transcript id\tEnsembl Gene id\tIntron Annotation\tAnnotation Status\n"
+	file_in.write(header)
+	for trans_id,intron_list in Dataset_complete.items():
+		None_comptor = 0
+		patchwork_id = {}
+		for intron_annotation in intron_list:
+			ens_id = intron_annotation[0]
+			gene_id = ens_id.split(":")[0]
+			if type(intron_annotation[1]) == list:
+				association = intron_annotation[1][0]
+			else:
+				association = intron_annotation[1]
+			if association != "NA" : 
+				regex = re.compile('^[^:]+:(.+):[0-9]{,3}')
+				result = regex.findall(association)
+				patchwork_id[result[0]]="" 
+			else : None_comptor+=1 
+		annotation = "Complete"
+		if None_comptor == len(intron_annotation) : annotation = "NA" 
+		elif None_comptor >= 1 : annotation = "Incomplete" 
+		if annotation == "Complete":
+			status = "Full"
+			if len(patchwork_id) > 1 : 
+				status = "Patchwork"
+		else:
+			status = "NA"
+		line = trans_id+"\t"+gene_id+"\t"+annotation+"\t"+status+"\n"
+		file_in.write(line)
+	file_in.close()
+
+
+def intron_annotation_file(file_name,Dataset_complete,Ens_data):
+	file_in=open(file_name,"w")
+	header = "Ensembl intron id\tRefSeq intron id\tTranscript id\tGene id\tCoordinates\n"
+	for trans_id,intron_list in Dataset_complete.items():
+		for intron_annotation in intron_list:
+			intron_id = intron_annotation[0]
+			intron_list_object = Ens_data[trans_id]
+			intron_object = [elmt[1] for elmt in intron_list_object if elmt[0] == intron_id]
+			if type(intron_annotation[1]) == list:
+				association = intron_annotation[1][0]
+			else:
+				association = intron_annotation[1]
+			line = intron_id+"\t"+association+"\t"+trans_id+"\t"+intron_object[0].gene_id+"\t"+intron_object[0].coords+"\n"
+			file_in.write(line)
+	file_in.close()
+
+
+
+opts, args = getopt.getopt(sys.argv[1:],'',['output_file_trans=','output_file_intron=','intron_braunch=','intron_ens='])
+for elmts in opts:
+	if elmts[0] == '--output_file_trans':
+		output_file_trans = elmts[1]
+	elif elmts[0] == '--output_file_intron':
+		output_file_intron = elmts[1]
+	elif elmts[0] == '--intron_braunch':
+		annotation_braunch = elmts[1]
+	elif elmts[0] == '--intron_ens':
+		annotation_ens = elmts[1]
+
+
+Ens_coord,Ens_data = extract_Ens_intron_coord(annotation_ens)
+Braunch_intron,Braunch_coord = extract_Braunch_intron(annotation_braunch)
 Dataset_all_Braunch = association_between_Braunch_Ensembl_coords(Braunch_intron,Ens_data,Ens_coord)
 Dataset_all_canonical = association_between_Ensembl_Braunch_coords(Braunch_coord,Ens_data,Ens_coord)
 Dataset_complete,more_one_id = complete_annotation(Ens_data,Dataset_all_canonical)
 Dataset_without_doublon = no_doublon(Dataset_complete,more_one_id)
+Dataset_complete = fusion_dataset(Dataset_complete,Dataset_without_doublon)
+#Écriture des fichiers de sortie : 
+transcript_information_file(output_file_trans,Dataset_complete)
+intron_annotation_file(output_file_intron,Dataset_complete,Ens_data)
