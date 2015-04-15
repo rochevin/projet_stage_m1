@@ -9,10 +9,11 @@ import re # On importe re pour expression régulière
 import os # On importe os pour éxecuter des commandes terminal dans python
 from Bio import SeqIO # On importe seqIO pour parser le fichier fasta
 from Bio.Seq import Seq
+from collections import Counter # On importe Counter qui va construire un dictionnaire pour compter le nombre d'occurence dans nos codons
 #Définition des classes
 
 class ExonInfo(object):
-	"On définit un classe qui contiendra les annotations de chaque exon"
+	"Classe qui contiendra les annotations de chaque exon"
 	def __init__(self,exon_id,trans_id,gene_id,coords,seq):
 		self.id = exon_id
 		self.coords = coords
@@ -35,7 +36,7 @@ class ExonInfo(object):
 
 
 class IntronInfo(object):
-	"On définit un classe qui contiendra les annotations de chaque intron"
+	"Classe qui contiendra les annotations de chaque intron"
 	def __init__(self,intron_id,trans_id,gene_id,coords,seq):
 		self.id = intron_id
 		self.coords = coords
@@ -55,6 +56,15 @@ class IntronInfo(object):
 			return self.seq.reverse_complement()
 		else:
 			return self.seq
+
+
+class NMDInfo(IntronInfo):
+	"Classe qui contiendra les informations sur la NMD visibilité"
+	def __init__(self,intron_id,trans_id,gene_id,coords,seq,phase,NMD,stop_count):
+		IntronInfo.__init__(self,intron_id,trans_id,gene_id,coords,seq)
+		self.phase = phase
+		self.NMD = NMD
+		self.stop_count = stop_count
 
 # Définition des fonctions 
 
@@ -170,37 +180,69 @@ def seq_CDS(list_id):
 		return [str(elmt[2].seq) for elmt in list_id]
 
 # Fonction qui va déterminer combien de codon stop il y'a et la position comme control
-def stop_control(CDS,transcript_id):
-	complete_CDS = ""
-	for elmt in CDS : complete_CDS+=elmt
-	position = 0
+def CDS_control(CDS):
+	# On détermine un score de 0, si le CDS passe à 1, c'est qu'il ne rempli pas une des conditions
+	score = 0
+	# Construction de la séquence du CDS -> concatenation de chaque séquence des exons
+	complete_CDS = "".join(CDS)
+	# On définit un tuple contenant tous les codons stop possible
+	stop_codon =("TGA","TAG","TAA")
+	# On vérifie qu'il commence par un start et fini par un stop :
+	if not (complete_CDS.endswith(stop_codon) or complete_CDS.startswith("ATG")) : score +=1
+	# On vérifie qu'il est bien multiple de 3 :
+	if not len(complete_CDS)%3 == 0 : score+=1
+	# On vérifie qu'il ne contient pas un codon stop prématuré
 	stop_control = 0
-	while position<len(complete_CDS):
-		triplet = complete_CDS[position:position+3]
-		if triplet.endswith(("TGA","TAG","TAA")) : stop_control+=1
-		position+=3
-	if stop_control > 1 : 
-		return 1
-	else : return 0
+	codons = [complete_CDS[i:i+3] for i in range(0,len(complete_CDS),3)]
+	index_codons = Counter(codons)
+	stop_control = sum(index_codons[elmt] for elmt in index_codons if elmt in stop_codon)
+	if stop_control > 1 : score+=1
+	return(score)
 
 # Fonction qui va enlever tous les introns pour construire le CDS
 def CDS(CDS_elmt):
 	return [(elmt[2].start,elmt[2].end,elmt[2]) for elmt in CDS_elmt if elmt[2].get_type == "exon"]
 
 # Fonction qui va introduire un intron dans le CDS
-def insert_intron(CDS_list,intron):
-	CDS_intron = CDS_list
+def insert_intron(CDS_content,intron):
+	CDS_intron = []
+	CDS_intron.extend(CDS_content)
 	CDS_intron.append(intron)
 	CDS_intron.sort(key=lambda x: int(x[1]))
 	return(CDS_intron)
+
+# Fonction qui va déterminer la phase de l'intron dans le CDS :
+def get_phase(CDS_intron):
+	len_before_intron = ""
+	for elmt in CDS_intron:
+		if elmt[2].get_type == "intron":
+			break
+		else:
+			len_before_intron += elmt[2].seq
+	return len(len_before_intron)%3
+
+def NMD_visibility(CDS_for_NMD):
+	# On join la séquence à partir des éléments du CDS + intron retenu
+	seq_CDS_for_NMD = "".join(CDS_for_NMD)
+	# On définit un control de codon stop initialisé à 0
+	stop_count = 0
+	# On définit un tuple contenant tous les codons stop possible
+	stop_codon =("TGA","TAG","TAA")
+	# On créer une liste de tous les codons de la séquence
+	codons = [seq_CDS_for_NMD[i:i+3] for i in range(0,len(seq_CDS_for_NMD),3)]
+	index_codons = Counter(codons)
+	stop_count = sum(index_codons[elmt] for elmt in index_codons if elmt in stop_codon)
+	return(stop_count)
 
 # Fonction principale qui va parcourir chaque transcrit et déterminer la NMD visibilitée des introns du transcrit
 def main_for_NMD(transcript_complete):
 	# Dictionnaire qui va contenir l'information pour chacuns de nos introns si il est ou non NMD visible
 	intron_annotation = {}
 	comptor = 0
+	NMD_count = 0
 	# On parcours chaque transcrit de notre liste
 	for transcript_id, transcript_content in transcript_complete.items():
+		print("###############################\n",transcript_id)
 		# On envoi le contenu du transcrit (intron et exons codants) à notre fonction
 		# Va renvoyer la même liste sans les introns non contenus dans le CDS
 		CDS_elmt = CDS_construction(transcript_content)
@@ -209,20 +251,35 @@ def main_for_NMD(transcript_complete):
 		# On créer une liste contenant uniquement les exons -> CDS
 		CDS_list = CDS(CDS_elmt)
 		# On construit la séquence du CDS (sous forme de liste)
-		# Afin de vérifier si le CDS possède un codon stop prématuré
 		exon_CDS = seq_CDS(CDS_list)
-		comptor += stop_control(exon_CDS,transcript_id)
+		# La fonction suivante va permettre de controler le CDS :
+		# - vérifier qu'il est bien multiple de 3
+		# - qu'il commence par ATG et fini par un stop
+		# - qu'il n'a pas de codon stop prématuré
+		if CDS_control(exon_CDS) != 0 : 
+			comptor+=1
+			continue
 		# Ajout de nos introns du CDS un a un :
-		intron_list = [elmt[2].id for elmt in CDS_elmt if elmt[2].get_type == "intron"]
+		intron_list = [elmt for elmt in CDS_elmt if elmt[2].get_type == "intron"]
 		# Pour chacun de nos introns contenus dans le CDS : 
 		for intron in intron_list:
-			# On insert l'intron dans le CDS : 
-			CDS_intron = insert_intron(CDS_list,intron)
-			print(CDS_intron)
+			# On définit une liste qui contiendra notre CDS et l'intron
+			CDS_intron = insert_intron(CDS(CDS_elmt),intron)
+			# On détermine la phase de l'intron
+			phase = get_phase(CDS_intron)
 			# Puis on fait la séquence 
 			seq_CDS_intron = seq_CDS(CDS_intron)
+			NMD_stop_count = NMD_visibility(seq_CDS_intron)
+			if NMD_stop_count > 1 and intron != intron_list[-1]: 
+				print(intron[2].id,"=>",intron[2].coords)
+				print('phase de l\'intron',phase)
+				print('Nombre de codons stop dans la séquence',NMD_stop_count)
+				NMD_count+=1
 
+			
 	print(comptor)
+	print(NMD_count)
+
 
 # Interface avec l'utilisateur :
 opts, args = getopt.getopt(sys.argv[1:],'',['liste_exon=','liste_intron=','fasta=',])
