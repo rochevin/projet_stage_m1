@@ -20,6 +20,12 @@ class TranscriptInfo(object):
 		self.cds_stop = int(pos_stop)
 		self.exons = [(exon.start,exon.stop,exon) for exon in list_object_exon]
 		self.introns = [(intron.start,intron.stop,intron) for intron in list_object_intron]
+
+		# Calcul de position pour tous les éléments du transcrit :
+		# Exons :
+		start_list = [c for c in cumsum(self.exons)]
+		end_list = [start_list[i]+len(self.exons[i][2].seq)-1 for i in range(0,len(self.exons),1)]
+		self.exon_pos = [(start_list[i],end_list[i],self.exons[i][2]) for i in range(0,len(self.exons),1)]
 	
 	def strand(self):
 		return self.exons[0][2].strand
@@ -63,13 +69,16 @@ class TranscriptInfo(object):
 		return full_list
 
 	def exon_position(self,one_exon):
-		start_list = [c for c in cumsum(self.exons)]
-		end_list = [start[i]+len(self.exons[i][2].seq)-1 for i in range(0,len(self.exons),1)]
-		return [(start_list[i],end_list[i],self.exons[i][2]) for i in range(0,len(self.exons),1)]
+		exon_in_list = self.exons.index(one_exon)
+		return self.exon_pos[exon_in_list]
 
 	def intron_start(self,one_intron):
-		full_transcript = self.transcript_content()
-		return exon_position(full_transcript.index(one_intron))[1]
+		CDS_intron = []
+		CDS_intron.extend(CDS_content)
+		CDS_intron.append(one_intron)
+		CDS_intron.sort(key=lambda x: int(x[1]))
+		return(CDS_intron)
+
 
 
 class ExonInfo(object):
@@ -121,6 +130,6 @@ class IntronInfo(object):
 def cumsum(liste):
 	s = 0
 	yield s
-	for elmt in liste:
+	for elmt in liste[:-1]:
 		s += len(elmt[2].seq)
 		yield s
