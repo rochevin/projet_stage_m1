@@ -274,12 +274,13 @@ def main_for_NMD(transcript_complete):
 				print(intron[2].id,"=>",intron[2].coords)
 				print('phase de l\'intron',phase)
 				print('Nombre de codons stop dans la séquence',NMD_stop_count)
+				intron_annotation[intron[2].id]=intron[2]
 				NMD_count+=1
 
 			
 	print(comptor)
 	print(NMD_count)
-
+	return intron_annotation
 
 # Interface avec l'utilisateur :
 opts, args = getopt.getopt(sys.argv[1:],'',['liste_exon=','liste_intron=','fasta=',])
@@ -302,3 +303,5 @@ CDS_by_transcript = get_all_cds_for_transcript(liste_exon,seq_info)
 intron_by_transcript = get_all_intron_for_transcript(liste_intron,seq_info)
 # Association des introns et des exons dans un transcrit
 transcript_complete = association_between_intron_and_exon(intron_by_transcript,CDS_by_transcript)
+
+intron_annotation = main_for_NMD(transcript_complete)
