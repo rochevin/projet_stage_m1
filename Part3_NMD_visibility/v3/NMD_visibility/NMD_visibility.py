@@ -9,6 +9,7 @@ import re # On importe re pour expression régulière
 import os # On importe os pour éxecuter des commandes terminal dans python
 from Bio import SeqIO # On importe seqIO pour parser le fichier fasta
 from Bio.Seq import Seq
+from math import *
 #Définition des classes
 
 class TranscriptInfo(object):
@@ -41,6 +42,16 @@ class TranscriptInfo(object):
 		self.PTC = self.PTC_pos()
 		# Type du transcrit :
 		self.type = self.CDS_type()
+		# Bornes 5' UTR : (la fin de la borne est défini par le début du codon start)
+		self.five_UTR_region = (0,self.cds_start)
+		# Bornes 3' UTR :
+		self.three_UTR_region = (self.cds_stop,len(self.seq[self.cds_stop:])-1)
+		# Fenetres de position pour les régions 5' et 3' UTR
+		self.five_UTR_windows = [(c,c-29) for c in cumsum_for_UTR(self.five_UTR_region[1],floor(self.five_UTR_region[1]/30),-30) if c-29 >=0]
+		self.three_UTR_windows = [(c,c+29) for c in cumsum_for_UTR(self.three_UTR_region[0],floor(self.three_UTR_region[1]/30),30) if c+29 <= self.three_UTR_region[1] ]
+		# Introns dans les régions UTRs :
+		self.intron_in_five_UTR = [elmt[0] for elmt in self.intron_pos if elmt[0] <= self.five_UTR_region[1]]
+		self.intron_in_three_UTR = [elmt[0] for elmt in self.intron_pos if elmt[0] >= self.three_UTR_region[0]]
 	# On récupère le brin du transcrit à partir de l'annotation des éléments du transcrit
 	def strand(self):
 		return self.transcript_content[0][1].strand
@@ -173,6 +184,12 @@ def cumsum(liste):
 		s += len(elmt[2].seq)
 		yield s
 
+def cumsum_for_UTR(s,max,window):
+	yield s
+	for i in range(max-1):
+		s+=window
+		yield s
+
 # Fonctions pour déroulement du programme
 #Fonction qui va récupérer les séquences fasta pour chaque exon/intron et les enregistrer dans un dictionnaire
 def get_seq_fasta(file_name):
@@ -294,8 +311,7 @@ def next_stop(seq,intron_seq,intron_start):
 	seq_intron_and_next_transcript = intron_seq+seq[intron_start:]
 	stop_position_list = stop_position_in_seq(seq_intron_and_next_transcript)
 	if stop_position_list != None:
-		next_stop_position = min([PTC_pos for PTC_pos in stop_position_list if PTC_pos > intron_start]) if max(stop_position_list) > intron_start else -1
-		dist_between_stop_and_intron_start = next_stop_position-intron_start
+		dist_between_stop_and_intron_start = min([PTC_pos for PTC_pos in stop_position_list if PTC_pos > intron_start]) if max(stop_position_list) > intron_start else -1
 		return dist_between_stop_and_intron_start
 	else:
 		return -1
@@ -306,7 +322,7 @@ def dist_next_intron(one_intron,intron_list):
 		return -1
 	else:
 		next_intron = intron_list[intron_list.index(one_intron)+1]
-		return int(next_intron[0])+len(one_intron[2].seq)-1
+		return int(next_intron[0])-int(one_intron[0])+len(one_intron[2].seq)-1
 
 # Fonction qui va permettre de récupérer les annotations pour chaque introns du transcrit
 def one_intron_retention(transcript_complete):
@@ -330,11 +346,6 @@ def one_intron_retention(transcript_complete):
 			# On récupère sa position dans le transcrit
 			intron_start = intron[0]
 			intron_object = intron[2]
-			# On calcule la phase de l'intron
-			phase = get_phase(seq_for_transcript,start,intron_start)
-			# On calcule la position du stop canonique dans le CDS, après retention de l'intron dans le CDS
-			pos_CDS_stop = stop_position_in_CDS+len(intron_object.seq)-1
-			dist_CDS_stop = stop-intron_start
 			# On calcule la distance du stop le plus proche : 
 			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start)
 			# On calcule la distance entre notre intron et le prochain en cas de retention de notre intron
@@ -345,11 +356,15 @@ def one_intron_retention(transcript_complete):
 
 			# Si l'intron est contenu dans le CDS
 			if intron_start > start and intron_start <= stop:
+				# On calcule la position du stop dans le CDS après retention de l'intron
+				pos_CDS_stop = stop+len(intron_object.seq)-1
+				# On calcule la phase de l'intron
+				phase = get_phase(seq_for_transcript,start,intron_start)
 				# Si le transcrit est OK, c'est à dire qu'il produit une protéine viable, on annote l'intron CDS_OK
 				if trans_object.type == "OK":
 					CDS_status = "CDS_OK"
 					# On simule la retention de l'intron dans le CDS
-					seq_with_intron = seq_with_intron_retention(seq_for_transcript,start,stop,str(intron_object.seq),intron_start)
+					seq_with_intron = seq_with_intron_retention(seq_for_transcript,start,stop-3,str(intron_object.seq),intron_start)
 					# On détermine si l'intron est NMD visible, c'est à dire si le transcrit va être détecter par le système NMD et dégradé lors de la retention de l'intron
 					NMD_status = NMD_visibility(seq_with_intron)
 					if NMD_status == "CDS_PTC_upon_insertion":
@@ -372,14 +387,24 @@ def one_intron_retention(transcript_complete):
 					CDS_status = "CDS_Partial"
 			# Si l'intron est dans le 5' UTR, on annote l'intron faisant parti de cette région et non détéctable par le système NMD
 			elif intron_start <= start:
+				# On calcule la position du stop dans le CDS après retention de l'intron
+				pos_CDS_stop = stop+len(intron_object.seq)-1
 				NMD_status = "NA" 
 				CDS_status = "5'UTR"
+				phase = "5'UTR"
 				five+=1
 			# Ou dans la région 3' UTR
 			elif intron_start > stop:
+				# On calcule la position du stop dans le CDS après retention de l'intron
+				pos_CDS_stop = stop
 				NMD_status = "NA"
 				CDS_status = "3'UTR"
+				phase = "3'UTR"
 				three+=1
+
+			# On calcule la distance du stop canonique dans le CDS et de l'intron, après retention de l'intron dans le CDS
+			# Dans le cas ou l'intron est dans le 3', sa position ne changera pas après retention de l'intron, la séquence de l'intron étant située après le stop.
+			dist_CDS_stop = pos_CDS_stop-intron_start
 			# On enregistre toutes nos annotations dans un objet NMD, qu'on enregistre dans un dictionnaire
 			NMD_info = NMDInfo(intron[2].id,trans_object,trans_object.gene_id,CDS_status,dist_next,dist_next_stop,dist_CDS_stop,NMD_status,position,phase,intron_start)
 			NMD_dic[NMD_info.id] = NMD_info
@@ -389,6 +414,119 @@ def one_intron_retention(transcript_complete):
 	print ("5'UTR :",five)
 	print("3'UTR :",three)
 	return NMD_dic
+
+##########################################################
+##################FONCTIONS BORNES UTR####################
+##########################################################
+def intron_density_in_UTR(transcript_complete):
+	# On définit deux dictionnaires qui contiendrons les fenêtres des régions 5' et 3'
+	five_UTR_density = {}
+	three_UTR_density = {}
+	# Pour chaque transcrit de notre jeu de données
+	for trans_id,trans_object in transcript_complete.items():
+		# UTR window :
+		five_windows = trans_object.five_UTR_windows
+		three_windows = trans_object.three_UTR_windows
+		# Introns in UTR :
+		five_introns = trans_object.intron_in_five_UTR
+		five_introns.sort(reverse = True)
+		three_introns = trans_object.intron_in_three_UTR
+		three_introns.sort()
+
+		# Parcours des fenetres et assignation des introns
+		# Pour le 5' UTR
+		for window in five_windows:
+			# Si aucun intron dans le 5', on associe la valeur 0 à notre fenêtre
+			if len(five_introns) == 0:
+				five_UTR_density[window]=0
+			# Sinon, on parcours les introns du 5' UTR
+			else:
+				for intron in five_introns:
+					# Si l'intron est contenu dans la fenêtre
+					if intron>=window[1] and intron<=window[0]:
+						# Alors on l'ajoute +1 à la fenêtre
+						if window in five_UTR_density:
+							five_UTR_density[window]+=1
+						else:
+							five_UTR_density[window]=1
+					# Sinon
+					else :
+						# On dit que la fenêtre ne contient aucun intron si celle si n'existe pas dans le dictionnaire
+						if not window in five_UTR_density:
+							five_UTR_density[window]=0
+		# Pour le 3' UTR
+		for window in three_windows:
+			if len(three_introns) == 0:
+				three_UTR_density[window]=0
+			else:
+				for intron in three_introns:
+					if intron>=window[0] and intron<=window[1]:
+						if window in three_UTR_density:
+							three_UTR_density[window]+=1
+						else:
+							three_UTR_density[window]=1
+					else :
+						if not window in three_UTR_density:
+							three_UTR_density[window]=0
+	return(five_UTR_density,three_UTR_density)
+
+def intron_density_in_UTR_test(transcript_complete):
+	# On définit deux dictionnaires qui contiendrons les fenêtres des régions 5' et 3'
+	five_UTR_density = {}
+	three_UTR_density = {}
+	# Pour chaque transcrit de notre jeu de données
+	for trans_id,trans_object in transcript_complete.items():
+		# UTR window :
+		five_windows = trans_object.five_UTR_windows
+		three_windows = trans_object.three_UTR_windows
+		# On construit le dictionnaire en initialisant les valeurs à 0 :
+		for elmt in five_windows:
+			if not elmt in five_UTR_density:
+				five_UTR_density[elmt]=0
+		for elmt in three_windows:
+			if not elmt in three_UTR_density:
+				three_UTR_density[elmt]=0
+		# Introns in UTR :
+		five_introns = trans_object.intron_in_five_UTR
+		three_introns = trans_object.intron_in_three_UTR
+		# Assignation du nombre d'introns par fenêtres :
+		# Pour le 5' UTR
+		five_UTR_density = calcul_density(UTR_density=five_UTR_density,introns=five_introns,windows=five_windows,reverse=True)
+		# Pour le 3' UTR
+		three_UTR_density = calcul_density(UTR_density=three_UTR_density,introns=three_introns,windows=three_windows,reverse=False)
+	return(five_UTR_density,three_UTR_density)
+
+# Fonction qui calcule, pour deux listes données, le nombre d'éléments dans la deuxième liste présents entre les deux bornes de chaque élément de la première
+def calcul_density(UTR_density,introns,windows,reverse):
+	# En fonction des régions UTR, l'élement le plus grand des limites de chaque fenêtre peut être le premier ou le second
+	# Dans le cas du 5' UTR, on part du start vers le début du transcrit, on a donc l'élément le plus grand à gauche et le plus petit à droite
+	# Dans le cas du 3' UTR, on part du stop vers la fin, on a donc l'élement le plus petit à gauche et le plus grandà droite
+	min_window_limit = 1 if reverse == True else 0
+	max_window_limit = 0 if reverse == True else 1
+	# On effectue un tri des deux listes dans l'ordre croissant
+	windows.sort()
+	introns.sort()
+	# On définit nos compteurs à 0
+	i = 0
+	j = 0
+	# Tant que le compteur i est inférieur à la taille de la liste des fenêtres, on continue
+	while i<len(windows):
+		# Si le compteur j est inférieur à la taille de la liste des introns, on peut vérifier l'élement de la liste des introns à la position j
+		if j<len(introns):
+			# Si la position de l'intron dans le transcrit est situé entre les limites de la fenêtres
+			if introns[j] <= windows[i][max_window_limit] and introns[j] >= windows[i][min_window_limit]:
+				# On ajoute +1 au compteur de la fenêtre pour tous nos transcrits
+				UTR_density[windows[i]]+=1
+				# Et +1 au compteur de nos introns, celui-ci étant dans cette fenêtre, il ne peut pas être dans les autres, plus besoin de la tester
+				j+=1
+			# Si l'intron n'est pas situé entres les limites de la fenêtres
+			else:
+				# On met +1 au compteur des fenêtres, si le premier intron ne match pas, aucun autre de la liste ne correspondra
+				i+=1
+		# Sinon, c'est que le compteur est allé au dela du nombre d'éléments de la liste des introns, ce qui veut dire qu'il n'y a plus d'introns et donc que ça ne sert plus à rien de parcourir les fenêtres
+		else:
+			break
+	return(UTR_density)
 
 # Interface avec l'utilisateur :
 opts, args = getopt.getopt(sys.argv[1:],'',['liste_exon=','liste_intron=','fasta=',])
