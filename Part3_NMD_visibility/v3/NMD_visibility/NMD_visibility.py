@@ -142,9 +142,9 @@ class IntronInfo(object):
 			return self.seq
 
 
-class NMDInfo(object):
+class PTCInfo(object):
 	"Classe qui contiendra les annotations de chaque intron pour la NMD visibilité"
-	def __init__(self,intron_id,transcript,gene_id,CDS_status,dist_next_intron,dist_next_stop,dist_CDS_stop,NMD_status,intron_position,intron_phase,intron_start):
+	def __init__(self,intron_id,transcript,gene_id,CDS_status,dist_next_intron,dist_next_stop,dist_CDS_stop,PTC_status,intron_position,intron_phase,intron_start):
 		self.id = intron_id
 		self.transcript = transcript
 		self.gene_id = gene_id
@@ -152,12 +152,28 @@ class NMDInfo(object):
 		self.dist_next_intron = dist_next_intron
 		self.dist_next_stop = dist_next_stop
 		self.dist_CDS_stop = dist_CDS_stop
-		self.NMD_status = NMD_status
+		self.PTC_status = PTC_status
 		self.position = intron_position
 		self.phase = intron_phase
 		self.start = intron_start
 	def format_print(self):
-		return self.id+"\t"+self.transcript.id+"\t"+self.gene_id+"\t"+self.CDS_status+"\t"+str(self.dist_next_intron)+"\t"+str(self.dist_next_stop)+"\t"+str(self.dist_CDS_stop)+"\t"+self.NMD_status+"\t"+str(self.position)+"\t"+str(self.phase)+"\n"
+		return self.id+"\t"+self.transcript.id+"\t"+self.gene_id+"\t"+self.CDS_status+"\t"+str(self.dist_next_intron)+"\t"+str(self.dist_next_stop)+"\t"+str(self.dist_CDS_stop)+"\t"+self.PTC_status+"\t"+str(self.position)+"\t"+str(self.phase)+"\n"
+
+
+class TranscriptAnnotate(object):
+	"Classe qui contiendra les annotations du transcrit"
+	def __init__(trans_id,gene_id,status,intron_number,exon_number,intron_bf_stop):
+		self.id = trans_id
+		self.gene_id = gene_id
+		self.status = status
+		self.intron_number = intron_number
+		self.exon_number = exon_number
+		self.intron_bf_stop = intron_bf_stop
+
+	def format_print(self):
+		return self.id+"\t"+self.gene_id+"\t"+self.status+"\t"+self.intron_number+"\t"+self.exon_number+"\t"+self.intron_bf_stop+"\n"
+
+
 # Fonctions qui servent à l'objet :
 
 def intron_start(exon_list,one_intron,strand):
@@ -276,14 +292,151 @@ def association_between_intron_and_exon(intron_by_transcript,CDS_by_transcript):
 ##########################################################
 ################FONCTIONS NMD VISIBILITY##################
 ##########################################################
+# Fonction qui va annoter chaque transcrit de notre jeu de données
+# ANNOTATIONS TRANSCRITS
+# -Gene
+# -Status de son CDS
+# -Nombres d'introns 
+# -Nombres d'exons
+# -Nombre d'introns avant le stop, suceptible d'avoir un impact sur le CDS
+def CDS_annotation(transcript_complete):
+	CDS_dic = {}
+	for trans_id,trans_object in transcript_complete.items():
+		# Identifiant du transcrit :
+		transcript_id = trans_id
+		# Identifiant du gène du transcrit :
+		gene_id = trans_object.gene_id
+		# Status du CDS du transcrit :
+		CDS_status = trans_object.type
+		# Nombre d'intron :
+		intron_number = len(trans_object.introns)
+		# Nombre d'exons : 
+		exon_number = len(trans_object.exons)
+		# Nombre d'introns avant le stop :
+		intron_before_stop = len([elmt for elmt in trans_object.intron_pos if elmt[0]<= trans_object.cds_stop])
+		# On enregistre les annotations dans un objet
+		Transcript = TranscriptAnnotate(trans_id=transcript_id,gene_id=gene_id,status=CDS_status,intron_number=intron_number,exon_number=exon_number,intron_bf_stop=intron_before_stop)
+		CDS_dic[Transcript.id]=Transcript
+
+
+# Fonction principale, pour chaque transcrit, va annoter tous ses introns, et donner les informations suivantes :
+# ANNOTATIONS INTRONS
+# -Transcrit
+# -Gene
+# -Numéro de l'intron
+# -Status du CDS
+# -Phase de l'intron
+# -Si PTC en cas de rétention
+# -Distance en bp entre le stop du CDS et la position de l'intron en cas de rétention
+# -Distance en bp du prochain intron en cas de rétention
+# -Distance en bp du prochain stop en cas de rétention
+def PTC_annotation(transcript_complete):
+	PTC_dic = {}
+	# On initialise les compteurs à 0
+	total_intron = intron_NMD = no_NMD = five = three = 0
+	for trans_id,trans_object in transcript_complete.items():
+		#### ANNOTATIONS SUR LE TRANSCRIT
+		# Identifiant du transcrit :
+		transcript_id = trans_id
+		# Identifiant du gène du transcrit :
+		gene_id = trans_object.gene_id
+		# Séquence du transcrit
+		seq_for_transcript = trans_object.seq
+		# On récupère les coordonnées transcrit du codon start et stop canonique 
+		cds_start = trans_object.cds_start
+		cds_stop = trans_object.cds_stop
+		# On récupère tous les introns du transcrit, ainsi que leur position sur le transcrit
+		introns_for_transcript = trans_object.intron_pos
+		#### ANNOTATIONS SUR LES INTRONS
+		# Pour chaque intron du transcrit :
+		for intron in introns_for_transcript:
+			# Compteur total :
+			total_intron+=1
+			# Identifiant de l'intron :
+			intron_id = intron[2].id
+			# On récupère le rang de l'intron dans le transcrit 
+			intron_rank = introns_for_transcript.index(intron)+1
+			# On récupère sa position dans le transcrit
+			intron_start = intron[0]
+			# On récupère sa séquence :
+			intron_object = intron[2]
+			intron_seq = intron_object.seq
+
+
+			# Détermination de l'annotation de l'intron : CDS_OK, CDS_PTC (5' ou 3'), CDS_Partial
+			# Si l'intron est contenu dans le CDS
+			if intron_start > start and intron_start <= stop:
+				# Si le transcrit est annté comme OK, c'est que son CDS a réussi les tests de control qualité (voir fonction objet CDS_type)
+				if trans_object.type == "OK":
+					CDS_status = "CDS_OK"
+				# Si le transcrit possède un codon stop prématuré dans la séquence, on annote l'intron comme étant CDS_PTC
+				elif trans_object.type == "PTC":
+					CDS_status = "CDS_PTC_5'" if intron_start < min(trans_object.PTC) else "CDS_PTC_3'"
+				# Si le status du transcrit est partiel, c'est à dire qu'il ne remplit pas une des conditions suivante :
+				#	-Pas de codon start
+				#	-Pas de codon stop
+				#	-Pas multiple de 3
+				# Alors on annote l'intron comme étant CDS_Partial
+				elif trans_object.type =="Partial":
+					CDS_status = "CDS_Partial"
+			# Si l'intron est dans le 5' UTR, on annote l'intron faisant parti de cette région et non détéctable par le système NMD
+			elif intron_start <= start:
+				CDS_status = "5'UTR"
+				five+=1
+			# Ou dans la région 3' UTR
+			elif intron_start > stop:
+				CDS_status = "3'UTR"
+				three+=1
+
+			# Phase de l'intron :
+			intron_phase = get_phase(status=CDS_status,seq=seq_for_transcript,start=cds_start,intron_pos=intron_start)
+
+			# PTC status :
+			PTC_status = annotation_PTC_status(status=CDS_status,seq=seq_for_transcript,start=cds_start,stop=cds_stop,intron_pos=intron_start,intron_seq=intron_seq)
+			if PTC_status != "NA":
+				intron_NMD+=1
+			else:
+				no_NMD+=1
+			# Calcul de la distance entre le stop du cds et le début de l'intron en cas de rétention
+			dist_intron_CDS_stop = dist_CDS_stop(status=CDS_status,stop=cds_stop,intron_pos=intron_start,len_intron=len(intron_seq)-1)
+
+			# Calcul de la distance entre l'intron et l'intron suivant en cas de retention d'intron
+			dist_intron_next_intron = dist_next_intron(intron,introns_for_transcript)
+
+			# Calcul de la distance du stop le plus proche : 
+			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start)
+
+			# On enregistre toutes nos annotations dans un objet NMD, qu'on enregistre dans un dictionnaire
+			PTC_info = NMDInfo(intron_id,transcript_id,gene_id,CDS_status,dist_intron_next_intron,dist_next_stop,dist_intron_CDS_stop,PTC_status,intron_rank,intron_phase,intron_start)
+			PTC_dic[PTC_info.id] = PTC_info
+	print ("Introns NMD visibles :",intron_NMD,"sur",total_intron)
+	print("No NMD :",no_NMD)
+	print ("5'UTR :",five)
+	print("3'UTR :",three)
+	return PTC_dic
+
+# Fonction qui va déterminer la phase de l'intron dans le CDS
+def get_phase(status,start,seq,intron_pos):
+	if status =="5'UTR" or status == "3'UTR":
+		return status
+	else:
+		return len(seq[start:intron_pos])%3
+
+# Fonction qui va déterminer si l'intron est NMD visible lorsqu'il est retenu
+def annotation_PTC_status(status,seq,start,stop,intron_pos,intron_seq):
+	if status != "CDS_OK":
+		return "NA"
+	else:
+		seq_with_intron = seq_with_intron_retention(seq,start,stop-3,intron_seq,intron_pos)
+		stop_position = stop_position_in_seq(seq_with_intron)
+		if stop_position != None and len(stop_position)>=1 :
+			return "CDS_PTC_upon_insertion"
+		else :
+			return "CDS_noPTC_upon_insertion"
+
 # Fonction qui va construire la séquence du CDS avec l'intron retenu
 def seq_with_intron_retention(seq,start,stop,intron_seq,intron_pos):
 	return seq[start:intron_pos]+intron_seq+seq[intron_pos:stop]
-
-		 
-# Fonction qui va déterminer la phase de l'intron dans le CDS
-def get_phase(seq,start,intron_pos):
-	return len(seq[start:intron_pos])%3
 
 # Fonction qui va retourner la position dans une séquence de tous les codons stop
 # Si on part du start, la position du codon stop dans le transcrit sera position_trouvée+position_start_transcrit+3
@@ -298,13 +451,22 @@ def stop_position_in_seq(any_seq):
 	else:
 		return None
 
-# Fonction qui va déterminer si l'intron est NMD visible lorsqu'il est retenu
-def NMD_visibility(seq_with_intron):
-	stop_position = stop_position_in_seq(seq_with_intron)
-	if stop_position != None and len(stop_position)>1 :
-		return "CDS_PTC_upon_insertion"
-	else :
-		return "CDS_noPTC_upon_insertion"
+# Fonction de calcul de la distance entre le stop canonique et le début de l'intron en cas de retention
+def dist_CDS_stop(status,stop,intron_pos,len_intron):
+	# Si l'intron est dans la région 3' UTR, la retention de l'intron n'a pas d'impact sur la position du stop
+	if status == "3'UTR" :
+		return stop-intron_pos
+	# Sinon, on doit ajouter la taille de l'intron à la position du stop, car celle-ci sera décalée d'autant de bp que contient la séquence de l'intron
+	else:
+		return (stop+len_intron)-intron_pos
+
+# Fonction qui va calculer la distance entre l'intron et l'intron suivant en cas de retention
+def dist_next_intron(one_intron,intron_list):
+	if one_intron == intron_list[-1]:
+		return -1
+	else:
+		next_intron = intron_list[intron_list.index(one_intron)+1]
+		return int(next_intron[0])-int(one_intron[0])+len(one_intron[2].seq)-1
 
 # Fonction qui va calculer le stop le plus proche de l'intron, si il n'y en a pas (donc intron dans région 3' UTR), la fonction retourne -1
 def next_stop(seq,intron_seq,intron_start):
@@ -315,105 +477,6 @@ def next_stop(seq,intron_seq,intron_start):
 		return dist_between_stop_and_intron_start
 	else:
 		return -1
-
-# Fonction qui va calculer la distance entre l'intron et le prochain, après retention de sa séquence
-def dist_next_intron(one_intron,intron_list):
-	if one_intron == intron_list[-1]:
-		return -1
-	else:
-		next_intron = intron_list[intron_list.index(one_intron)+1]
-		return int(next_intron[0])-int(one_intron[0])+len(one_intron[2].seq)-1
-
-# Fonction qui va permettre de récupérer les annotations pour chaque introns du transcrit
-def one_intron_retention(transcript_complete):
-	NMD_dic = {}
-	total_intron = intron_NMD = no_NMD = five = three = 0
-	for trans_id,trans_object in transcript_complete.items():
-		# On récupère la séquence du transcrit
-		seq_for_transcript = trans_object.seq
-		# On récupère les coordonnées transcrit du codon start et stop canonique 
-		start = trans_object.cds_start
-		stop = trans_object.cds_stop
-		# Si on veut la position du codon stop dans le CDS, on doit soustraire la position du start du CDS, et enlever 3 pour obtenir le début du codon
-		stop_position_in_CDS = stop-start-3
-		# On récupère tous les introns du transcrit, ainsi que leur position sur le transcrit
-		introns_for_transcript = trans_object.intron_pos
-		# Pour chaque intron du transcrit :
-		for intron in introns_for_transcript:
-			total_intron+=1
-			# On récupère le rang de l'intron dans le transcrit 
-			position = introns_for_transcript.index(intron)+1
-			# On récupère sa position dans le transcrit
-			intron_start = intron[0]
-			intron_object = intron[2]
-			# On calcule la distance du stop le plus proche : 
-			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start)
-			# On calcule la distance entre notre intron et le prochain en cas de retention de notre intron
-			dist_next = dist_next_intron(intron,introns_for_transcript)
-
-
-			# Détermination de l'annotation de l'intron : CDS_OK, CDS_PTC (5' ou 3'), CDS_Partial
-
-			# Si l'intron est contenu dans le CDS
-			if intron_start > start and intron_start <= stop:
-				# On calcule la position du stop dans le CDS après retention de l'intron
-				pos_CDS_stop = stop+len(intron_object.seq)-1
-				# On calcule la phase de l'intron
-				phase = get_phase(seq_for_transcript,start,intron_start)
-				# Si le transcrit est OK, c'est à dire qu'il produit une protéine viable, on annote l'intron CDS_OK
-				if trans_object.type == "OK":
-					CDS_status = "CDS_OK"
-					# On simule la retention de l'intron dans le CDS
-					seq_with_intron = seq_with_intron_retention(seq_for_transcript,start,stop-3,str(intron_object.seq),intron_start)
-					# On détermine si l'intron est NMD visible, c'est à dire si le transcrit va être détecter par le système NMD et dégradé lors de la retention de l'intron
-					NMD_status = NMD_visibility(seq_with_intron)
-					if NMD_status == "CDS_PTC_upon_insertion":
-						intron_NMD+=1
-					else:
-						no_NMD+=1
-				# Si le transcrit possède un codon stop prématuré dans la séquence, on annote l'intron comme étant CDS_PTC
-				elif trans_object.type == "PTC":
-					no_NMD+=1
-					NMD_status = "NA"
-					CDS_status = "CDS_PTC_5'" if intron_start < min(trans_object.PTC) else "CDS_PTC_3'"
-				# Si le status du transcrit est partiel, c'est à dire qu'il ne remplit pas une des conditions suivante :
-				#	-Pas de codon start
-				#	-Pas de codon stop
-				#	-Pas multiple de 3
-				# Alors on annote l'intron comme étant CDS_Partial
-				elif trans_object.type =="Partial":
-					no_NMD+=1
-					NMD_status = "NA"
-					CDS_status = "CDS_Partial"
-			# Si l'intron est dans le 5' UTR, on annote l'intron faisant parti de cette région et non détéctable par le système NMD
-			elif intron_start <= start:
-				# On calcule la position du stop dans le CDS après retention de l'intron
-				pos_CDS_stop = stop+len(intron_object.seq)-1
-				NMD_status = "NA" 
-				CDS_status = "5'UTR"
-				phase = "5'UTR"
-				five+=1
-			# Ou dans la région 3' UTR
-			elif intron_start > stop:
-				# On calcule la position du stop dans le CDS après retention de l'intron
-				pos_CDS_stop = stop
-				NMD_status = "NA"
-				CDS_status = "3'UTR"
-				phase = "3'UTR"
-				three+=1
-
-			# On calcule la distance du stop canonique dans le CDS et de l'intron, après retention de l'intron dans le CDS
-			# Dans le cas ou l'intron est dans le 3', sa position ne changera pas après retention de l'intron, la séquence de l'intron étant située après le stop.
-			dist_CDS_stop = pos_CDS_stop-intron_start
-			# On enregistre toutes nos annotations dans un objet NMD, qu'on enregistre dans un dictionnaire
-			NMD_info = NMDInfo(intron[2].id,trans_object,trans_object.gene_id,CDS_status,dist_next,dist_next_stop,dist_CDS_stop,NMD_status,position,phase,intron_start)
-			NMD_dic[NMD_info.id] = NMD_info
-
-	print ("Introns NMD visibles :",intron_NMD,"sur",total_intron)
-	print("No NMD :",no_NMD)
-	print ("5'UTR :",five)
-	print("3'UTR :",three)
-	return NMD_dic
 
 ##########################################################
 ##################FONCTIONS BORNES UTR####################
@@ -550,5 +613,5 @@ intron_by_transcript = get_all_intron_for_transcript(liste_intron,seq_info)
 # Association des introns et des exons dans un transcrit
 transcript_complete = association_between_intron_and_exon(intron_by_transcript,CDS_by_transcript)
 # Pour chaque transcrit, on annote chaque intron du transcrit pour vérifier si il est NMD visible
-NMD_dic = one_intron_retention(transcript_complete)
+NMD_dic = PTC_annotation(transcript_complete)
 
