@@ -1,6 +1,6 @@
 # Programme qui va récupérer la liste des exons codants et des introns pour chaque transcrit canonique ensembl
 # A partir de ces annotations, va organiser chaque transcrit canonique de façon à ce qu'il contienne tous ses exons/introns
-# A partir de cette liste, va construire le CDS de chaque transcrit, puis introduire un à un chaque intron 
+# A partir de cette liste, va construire le CDS de chaque transcrit, puis introduire un à un chaque intron
 # Pour chaque intron, on déterminera si celui-ci est NMD visible, et si il décale la phase, on indiquera donc la phase de l'intron
 
 
@@ -36,7 +36,7 @@ class TranscriptInfo(object):
 		# Calcul de position pour tous les éléments du transcrit :
 		# Exons :
 		self.exon_pos = pos_in_transcript(self.exons,self.strand)
-		# Introns : 
+		# Introns :
 		self.intron_pos = [intron_start(self.exons,one_intron,self.strand) for one_intron in self.introns]
 		# PTC :
 		self.PTC = self.PTC_pos()
@@ -73,16 +73,16 @@ class TranscriptInfo(object):
 		codons = [self.CDS_seq[i:i+3] for i in range(0,len(self.CDS_seq),3)]
 		index_codons = [ i*3+self.cds_start+3 for i in range(0,len(codons),1) if codons[i] in stop_codon][:-1]
 		return index_codons if len(index_codons) > 0 else None
-		
+
 	# On récupère le type du transcrit, celui-ci peut être OK, partiel (sans start/stop ni multiple de 3), ou PTC (CaD avec un codon stop prematuré)
 	def CDS_type(self):
 		# On définit un tuple contenant tous les codons stop possible
 		stop_codon = ("TGA","TAG","TAA")
 		# On vérifie qu'il commence par un start et fini par un stop :
-		if not (self.CDS_seq.endswith(stop_codon) or self.CDS_seq.startswith("ATG")) : 
+		if not (self.CDS_seq.endswith(stop_codon) or self.CDS_seq.startswith("ATG")) :
 			return "Partial"
 		# On vérifie qu'il est bien multiple de 3 :
-		if not len(self.CDS_seq)%3 == 0 : 
+		if not len(self.CDS_seq)%3 == 0 :
 			return "Partial"
 		# On vérifie si il contient un PTC
 		if self.PTC != None:
@@ -219,8 +219,8 @@ def get_seq_fasta(file_name):
 	for record in SeqIO.parse(handle, "fasta") : #On parse le fichier avec seqIO
 		seq_id = record.id #On enregistre le nom de la sequence, ici les coordonnées
 		seq = record.seq #On enregistre la sequence fasta dans une variable
-		seq= seq.upper() #On met en majuscule au cas ou la séquence ne l'est pas
-		seq_info[seq_id]=seq # On enregistre la séquence dans le dictionnaire 
+		seq = seq.upper() #On met en majuscule au cas ou la séquence ne l'est pas
+		seq_info[seq_id] = seq # On enregistre la séquence dans le dictionnaire
 	handle.close()
 	return(seq_info)
 
@@ -300,7 +300,7 @@ def association_between_intron_and_exon(intron_by_transcript,CDS_by_transcript):
 # ANNOTATIONS TRANSCRITS
 # -Gene
 # -Status de son CDS
-# -Nombres d'introns 
+# -Nombres d'introns
 # -Nombres d'exons
 # -Nombre d'introns avant le stop, suceptible d'avoir un impact sur le CDS
 def CDS_annotation(transcript_complete):
@@ -314,7 +314,7 @@ def CDS_annotation(transcript_complete):
 		CDS_status = trans_object.type
 		# Nombre d'intron :
 		intron_number = len(trans_object.introns)
-		# Nombre d'exons : 
+		# Nombre d'exons :
 		exon_number = len(trans_object.exons)
 		# Nombre d'introns avant le stop :
 		intron_before_stop = len([elmt for elmt in trans_object.intron_pos if elmt[0]<= trans_object.cds_stop])
@@ -348,7 +348,7 @@ def PTC_annotation(transcript_complete):
 		gene_id = trans_object.gene_id
 		# Séquence du transcrit
 		seq_for_transcript = trans_object.seq
-		# On récupère les coordonnées transcrit du codon start et stop canonique 
+		# On récupère les coordonnées transcrit du codon start et stop canonique
 		cds_start = trans_object.cds_start
 		cds_stop = trans_object.cds_stop
 		# On récupère tous les introns du transcrit, ainsi que leur position sur le transcrit
@@ -360,7 +360,7 @@ def PTC_annotation(transcript_complete):
 			total_intron+=1
 			# Identifiant de l'intron :
 			intron_id = intron[2].id
-			# On récupère le rang de l'intron dans le transcrit 
+			# On récupère le rang de l'intron dans le transcrit
 			intron_rank = introns_for_transcript.index(intron)+1
 			# On récupère sa position dans le transcrit
 			intron_start = intron[0]
@@ -390,7 +390,7 @@ def PTC_annotation(transcript_complete):
 			# Calcul de la distance entre l'intron et l'intron suivant en cas de retention d'intron
 			dist_intron_last_intron = dist_last_intron(intron,introns_for_transcript)
 
-			# Calcul de la distance du stop le plus proche : 
+			# Calcul de la distance du stop le plus proche :
 			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start)
 
 			# On enregistre toutes nos annotations dans un objet NMD, qu'on enregistre dans un dictionnaire
@@ -484,7 +484,7 @@ def dist_last_intron(one_intron,intron_list):
 			return -1
 		last_intron = intron_list[-1]
 		return int(last_intron[0])-int(one_intron[0])+len(one_intron[2].seq)-1
-		
+
 
 # Fonction qui va calculer le stop le plus proche de l'intron, si il n'y en a pas la fonction retourne -1
 def next_stop(seq,intron_seq,intron_start):
@@ -588,7 +588,7 @@ for elmts in opts:
 # Lancement des fonctions :
 # Récupération des séquences fasta
 seq_info = get_seq_fasta(fasta_file)
-# Récupération des exons 
+# Récupération des exons
 CDS_by_transcript = get_all_exon_for_transcript(liste_exon,seq_info)
 # Récupération des introns
 intron_by_transcript = get_all_intron_for_transcript(liste_intron,seq_info)

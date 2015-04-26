@@ -1,6 +1,6 @@
 # Programme qui va récupérer la liste des exons codants et des introns pour chaque transcrit canonique ensembl
 # A partir de ces annotations, va organiser chaque transcrit canonique de façon à ce qu'il contienne tous ses exons/introns
-# A partir de cette liste, va construire le CDS de chaque transcrit, puis introduire un à un chaque intron 
+# A partir de cette liste, va construire le CDS de chaque transcrit, puis introduire un à un chaque intron
 # Pour chaque intron, on déterminera si celui-ci est NMD visible, et si il décale la phase, on indiquera donc la phase de l'intron
 
 
@@ -66,7 +66,7 @@ class NMDInfo(IntronInfo):
 		self.NMD = NMD
 		self.stop_count = stop_count
 
-# Définition des fonctions 
+# Définition des fonctions
 
 #Fonction qui va récupérer les séquences fasta pour chaque exon/intron et les enregistrer dans un dictionnaire
 def get_seq_fasta(file_name):
@@ -76,8 +76,8 @@ def get_seq_fasta(file_name):
 	for record in SeqIO.parse(handle, "fasta") : #On parse le fichier avec seqIO
 		seq_id = record.id #On enregistre le nom de la sequence, ici les coordonnées
 		seq = record.seq #On enregistre la sequence fasta dans une variable
-		seq= seq.upper() #On met en majuscule au cas ou la séquence ne l'est pas
-		seq_info[seq_id]=seq # On enregistre la séquence dans le dictionnaire 
+		seq = seq.upper() #On met en majuscule au cas ou la séquence ne l'est pas
+		seq_info[seq_id] = seq # On enregistre la séquence dans le dictionnaire
 	handle.close()
 	return(seq_info)
 
@@ -162,7 +162,7 @@ def CDS_construction(transcript):
 	CDS_elmt = [intron for intron in introns if (int(intron[0]) in exons_coords and int(intron[1]) in exons_coords)]
 	CDS_elmt.extend([(elmt[1].start,elmt[1].end,elmt[1]) for elmt in transcript if elmt[1].get_type == "exon"])
 	CDS_elmt.sort(key=lambda x: int(x[1]))
-	
+
 	return(CDS_elmt)
 
 # Fonction qui va lister les introns ne faisant pas parti du CDS
@@ -256,28 +256,28 @@ def main_for_NMD(transcript_complete):
 		# - vérifier qu'il est bien multiple de 3
 		# - qu'il commence par ATG et fini par un stop
 		# - qu'il n'a pas de codon stop prématuré
-		if CDS_control(exon_CDS) != 0 : 
+		if CDS_control(exon_CDS) != 0 :
 			comptor+=1
 			continue
 		# Ajout de nos introns du CDS un a un :
 		intron_list = [elmt for elmt in CDS_elmt if elmt[2].get_type == "intron"]
-		# Pour chacun de nos introns contenus dans le CDS : 
+		# Pour chacun de nos introns contenus dans le CDS :
 		for intron in intron_list:
 			# On définit une liste qui contiendra notre CDS et l'intron
 			CDS_intron = insert_intron(CDS(CDS_elmt),intron)
 			# On détermine la phase de l'intron
 			phase = get_phase(CDS_intron)
-			# Puis on fait la séquence 
+			# Puis on fait la séquence
 			seq_CDS_intron = seq_CDS(CDS_intron)
 			NMD_stop_count = NMD_visibility(seq_CDS_intron)
-			if NMD_stop_count > 1 and intron != intron_list[-1]: 
+			if NMD_stop_count > 1 and intron != intron_list[-1]:
 				print(intron[2].id,"=>",intron[2].coords)
 				print('phase de l\'intron',phase)
 				print('Nombre de codons stop dans la séquence',NMD_stop_count)
 				intron_annotation[intron[2].id]=intron[2]
 				NMD_count+=1
 
-			
+
 	print(comptor)
 	print(NMD_count)
 	return intron_annotation
@@ -297,7 +297,7 @@ for elmts in opts:
 # Lancement des fonctions :
 # Récupération des séquences fasta
 seq_info = get_seq_fasta(fasta_file)
-# Récupération des exons 
+# Récupération des exons
 CDS_by_transcript = get_all_cds_for_transcript(liste_exon,seq_info)
 # Récupération des introns
 intron_by_transcript = get_all_intron_for_transcript(liste_intron,seq_info)
