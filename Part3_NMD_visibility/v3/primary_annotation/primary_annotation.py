@@ -208,6 +208,7 @@ def association_between_intron_and_exon(intron_by_transcript,exon_by_transcript)
     return(transcript_complete)
 
 def print_data(transcript_complete, exon_len = 20, intron_len = 30, len_GC = 40):
+    prob_intron_count = 0
     for trans_id, trans_object in transcript_complete.items():
         intron_list = trans_object.introns
         transcript_content = trans_object.transcript_content
@@ -226,8 +227,10 @@ def print_data(transcript_complete, exon_len = 20, intron_len = 30, len_GC = 40)
             # On récupère les séquences d'intérêts :
             if intron_seq != "NA":
                 # On récupère les séquences bordantes des exons :
-                seq_left_exon,seq_right_exon = get_flanking_exon_for_intron(transcript_content,intron_and_coords,exon_len)
-
+                seq_left_exon,seq_right_exon,prob_intron = get_flanking_exon_for_intron(transcript_content,intron_and_coords,exon_len)
+                if prob_intron == True:
+                    prob_intron_count+=1
+                    print(intron.chr)
                 # On récupère le début et la fin de la séquence de l'intron :
                 intron_seq_left = intron.seq_begin(intron_len)
                 intron_seq_right = intron.seq_end(intron_len)
@@ -240,21 +243,28 @@ def print_data(transcript_complete, exon_len = 20, intron_len = 30, len_GC = 40)
             total_len = int(intron_len) # Détermine les bords de la séquence minimale de l'intron moins les nucleotides d'intéret
             intron_GC = intron.GCrate(total_len,len_GC)
             line = intron.id+"\t"+trans_id+"\t"+intron.gene_id+"\t"+intron.coords+"\t"+seq_left+"\t"+seq_right+"\t"+str(intron.len_seq)+"\t"+str(position)+"\t"+str(numbers_of_introns)+"\t"+str(intron_GC)+"\n"
-            print(line)
+            # print(line)
+    print(prob_intron_count)
 
 def get_flanking_exon_for_intron(full_list,one_intron,number_of_nucleotides = 20):
+    prob_intron=False
+
     intron_position_in_list = full_list.index(one_intron)
     # On récupère l'exon flanquant gauche :
     exon_left = full_list[intron_position_in_list-1]
     # Si la séquence de l'exon est inférieure au nombre de nucleotides qu'on veut récupérer :
     if len(exon_left[2].seq) < number_of_nucleotides:
         # On calcule le nombre de base qu'il nous manque
-        missing_length = number_of_nucleotides-exon_left[2].len_seq
-        exon_position_in_list = full_list.index(exon_left)
-        intron_before_left_exon = full_list[exon_position_in_list-1]
-        # On récupère de l'intron les nucleotides qu'il nous manque
-        missing_nucleotides = intron_before_left_exon[2].seq[-missing_length:]
-        seq_exon_left = missing_nucleotides+exon_left[2].flanking_seq_left(number_of_nucleotides)
+        if exon_left == full_list[0]:
+            seq_exon_left = exon_left[2].flanking_seq_left(number_of_nucleotides)
+            prob_intron = True
+        else:
+            missing_length = number_of_nucleotides-exon_left[2].len_seq
+            exon_position_in_list = full_list.index(exon_left)
+            intron_before_left_exon = full_list[exon_position_in_list-1]
+            # On récupère de l'intron les nucleotides qu'il nous manque
+            missing_nucleotides = intron_before_left_exon[2].seq[-missing_length:]
+            seq_exon_left = missing_nucleotides+exon_left[2].flanking_seq_left(number_of_nucleotides)
     else:
         seq_exon_left = exon_left[2].flanking_seq_left(number_of_nucleotides)
     # On récupère l'exon flanquant droit :
@@ -262,15 +272,19 @@ def get_flanking_exon_for_intron(full_list,one_intron,number_of_nucleotides = 20
     # Si la séquence de l'exon est inférieure au nombre de nucleotides qu'on veut récupérer :
     if len(exon_right[2].seq) < number_of_nucleotides:
         # On calcule le nombre de base qu'il nous manque
-        missing_length = number_of_nucleotides-exon_right[2].len_seq
-        exon_position_in_list = full_list.index(exon_right)
-        intron_after_right_exon = full_list[exon_position_in_list+1]
-        # On récupère de l'intron les nucleotides qu'il nous manque
-        missing_nucleotides = intron_after_right_exon[2].seq[-missing_length:]
-        seq_exon_right = missing_nucleotides+exon_right[2].flanking_seq_right(number_of_nucleotides)
+        if exon_right == full_list[-1]:
+            seq_exon_right = exon_right[2].flanking_seq_right(number_of_nucleotides)
+            prob_intron=True
+        else:
+            missing_length = number_of_nucleotides-exon_right[2].len_seq
+            exon_position_in_list = full_list.index(exon_right)
+            intron_after_right_exon = full_list[exon_position_in_list+1]
+            # On récupère de l'intron les nucleotides qu'il nous manque
+            missing_nucleotides = intron_after_right_exon[2].seq[-missing_length:]
+            seq_exon_right = missing_nucleotides+exon_right[2].flanking_seq_right(number_of_nucleotides)
     else:
         seq_exon_right = exon_right[2].flanking_seq_right(number_of_nucleotides)
-    return (seq_exon_left,seq_exon_right)
+    return (seq_exon_left,seq_exon_right,prob_intron)
 
 def sequence_of_interest(intron_seq,exon_seq,position):
     return exon_seq+intron_seq if position =="left" else intron_seq+exon_seq
