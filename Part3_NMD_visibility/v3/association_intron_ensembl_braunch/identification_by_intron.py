@@ -111,23 +111,75 @@ def no_doublon(dataset,more_one_id):
                 Dataset_without_doublon[key].append((id_ens,"NA"))
     return(Dataset_without_doublon)
 
+# Fonction de fusion des deux dictionnaires
 def fusion_dataset(Dataset_complete,Dataset_without_doublon):
     for trans_id,intron_list in Dataset_without_doublon.items():
         Dataset_complete[trans_id]=intron_list
     return(Dataset_complete)
 
+# Fonction qui va écrre les fichiers d'annotation pour les transcrits et les introns
+def writing_annotation_file(output_file_trans,output_file_intron,Ens_data,Dataset_complete):
+    # Ouverture et écriture des en-têtes
+    file_in_transcript=open(file_name,"w")
+    file_in_intron=open(file_name,"w")
+    header_transcript = "Ensembl Transcript id\tEnsembl Gene id\tIntron Annotation\tAnnotation Status\n"
+    header_intron = "Ensembl intron id\tRefSeq intron id\tTranscript id\tGene id\tCoordinates\n"
+    file_in_transcript.write(header_transcript)
+    file_in_intron.write(header_intron)
+
+    for key,value in Dataset_complete.items():
+        trans_id = key
+        intron_for_transcript = value
+        # On récupère l'id du gene correspondant au transcrit
+        gene_id_for_transcript = Ens_data[key][0][1].gene_id
+        # On détermine l'annotation du transcrit :
+        Intron_annotation,Annotation_status = annotation_for_transcript(intron_for_transcript)
+        line = key+"\t"+gene_id_for_transcript+"\t"+Intron_annotation+"\t"+Annotation_status+"\n"
+
+        for elmt in value:
 
 
-# opts, args = getopt.getopt(sys.argv[1:],'',['output_file_trans=','output_file_intron=','intron_braunch=','intron_ens='])
-# for elmts in opts:
-#     if elmts[0] == '--output_file_trans':
-#         output_file_trans = elmts[1]
-#     elif elmts[0] == '--output_file_intron':
-#         output_file_intron = elmts[1]
-#     elif elmts[0] == '--intron_braunch':
-#         annotation_braunch = elmts[1]
-#     elif elmts[0] == '--intron_ens':
-#         annotation_ens = elmts[1]
+
+
+# Fonction qui va annoter un transcrit et indiquer si il est complet, incomplet, ou patchwork
+def annotation_for_transcript(intron_list):
+    # Définition des variables :
+    Intron_annotation = "Complet" # Par défaut, on dit que l'annotation des introns est complete, c'est à dire que tous les introns du transcrit sont annotés d'un identifiant braunch
+    Annotation_status = "Full" # Par défaut, tous les introns ont le même identifiant de transcrit braunch
+    # Liste qui va compter combien d'identifiant braunch sont dans la liste des introns, si plus d'un -> Patchwork
+    braunch_id_in_transcript = []
+    # Compteur de NA :
+    NA_count=0
+    # Parcours de tous les introns :
+    for intron in intron_list:
+        if intron[1] == "NA":
+            NA_count +=1
+        else:
+            id_braunch_refseq = intron[1][0].split(':')[2]
+            braunch_id_in_transcript.append(id_braunch_refseq)
+    if NA_count == len(intron_list):
+        Intron_annotation = "NA"
+        Annotation_status = "NA"
+    elif NA_count>0 :
+        Intron_annotation = "Incomplet"
+        Annotation_status = str(len(intron_list)-NA_count)+":"+str(len(intron_list))
+    else:
+        if len(set(braunch_id_in_transcript)) > 1:
+            Annotation_status = "Patchwork"
+    return(Intron_annotation,Annotation_status)
+
+
+
+opts, args = getopt.getopt(sys.argv[1:],'',['output_file_trans=','output_file_intron=','intron_braunch=','intron_ens='])
+for elmts in opts:
+    if elmts[0] == '--output_file_trans':
+        output_file_trans = elmts[1]
+    elif elmts[0] == '--output_file_intron':
+        output_file_intron = elmts[1]
+    elif elmts[0] == '--intron_braunch':
+        annotation_braunch = elmts[1]
+    elif elmts[0] == '--intron_ens':
+        annotation_ens = elmts[1]
 Ens_data = get_ens_intron_coord('/Users/Vincent/Documents/STAGE_LYON/Projet_stage_RV/results/file_for_NMD/list_and_fasta_v2/list_intron.tab')
 Braunch_coord = get_braunch_intron_coord('/Users/Vincent/Documents/STAGE_LYON/Projet_stage_RV/data/DataBraunschweig/TableS6_IntronsHuman.tab')
 association = association_between_Ensembl_and_Braunch(Ens_data,Braunch_coord)
