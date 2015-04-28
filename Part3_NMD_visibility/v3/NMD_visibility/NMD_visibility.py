@@ -9,7 +9,6 @@ import re # On importe re pour expression régulière
 import os # On importe os pour éxecuter des commandes terminal dans python
 from Bio import SeqIO # On importe seqIO pour parser le fichier fasta
 from Bio.Seq import Seq
-from math import *
 #Définition des classes
 
 class TranscriptInfo(object):
@@ -45,10 +44,10 @@ class TranscriptInfo(object):
 		# Bornes 5' UTR : (la fin de la borne est défini par le début du codon start)
 		self.five_UTR_region = (0,self.cds_start)
 		# Bornes 3' UTR :
-		self.three_UTR_region = (self.cds_stop+1,len(self.seq[self.cds_stop:])-1)
+		self.three_UTR_region = (self.cds_stop+1,len(self.seq)-1)
 		# Fenetres de position pour les régions 5' et 3' UTR
-		self.five_UTR_windows = [(c,c-29) for c in cumsum_for_UTR(self.five_UTR_region[1],floor(self.five_UTR_region[1]/30),-30) if c-29 >=0]
-		self.three_UTR_windows = [(c,c+29) for c in cumsum_for_UTR(self.three_UTR_region[0],floor(self.three_UTR_region[1]/30),30) if c+29 <= self.three_UTR_region[1] ]
+		self.five_UTR_windows = [(c,c-29) for c in cumsum_for_5UTR(self.five_UTR_region[1],self.five_UTR_region[0],-30)]
+		self.three_UTR_windows = [(c,c+29) for c in cumsum_for_3UTR(self.three_UTR_region[0],self.three_UTR_region[1],30)]
 		# Introns dans les régions UTRs :
 		self.intron_in_five_UTR = [elmt[0] for elmt in self.intron_pos if elmt[0] <= self.five_UTR_region[1]]
 		self.intron_in_three_UTR = [elmt[0] for elmt in self.intron_pos if elmt[0] >= self.three_UTR_region[0]]
@@ -204,9 +203,14 @@ def cumsum(liste):
 		yield s
 
 # Fonction basée sur le même principe que cumsum, sauf qu'il faut déterminer le nombres de fenêtres qu'il peut y avoir dans le transcrit
-def cumsum_for_UTR(s,max,window):
+def cumsum_for_3UTR(s,limit,window):
 	yield s
-	for i in range(max-1):
+	while s <= limit-60:
+		s+=window
+		yield s
+def cumsum_for_5UTR(s,limit,window):
+	yield s
+	while s >= limit+60:
 		s+=window
 		yield s
 
