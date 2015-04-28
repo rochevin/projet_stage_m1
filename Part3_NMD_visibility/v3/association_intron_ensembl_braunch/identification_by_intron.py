@@ -119,26 +119,66 @@ def fusion_dataset(Dataset_complete,Dataset_without_doublon):
 
 # Fonction qui va écrre les fichiers d'annotation pour les transcrits et les introns
 def writing_annotation_file(output_file_trans,output_file_intron,Ens_data,Dataset_complete):
+    # Déclaration des compteurs :
+    NA_count = 0 # Compteur des transcrits sans aucune annotation braunch
+    Partial_count = 0 # Compteur des transcrits avec au moins un intron non annoté
+    Complet_count = 0 # Compteur des transcrits complétements annotés
+    Full_count = 0 # Compteur des transcrits annotés avec le même transcrit braunch
+    Patchwork_count = 0 # Compteur des transcrits annotés avec différents id de transcrits braunch
     # Ouverture et écriture des en-têtes
-    file_in_transcript=open(file_name,"w")
-    file_in_intron=open(file_name,"w")
+    file_in_transcript=open(output_file_trans,"w")
+    file_in_intron=open(output_file_intron,"w")
     header_transcript = "Ensembl Transcript id\tEnsembl Gene id\tIntron Annotation\tAnnotation Status\n"
     header_intron = "Ensembl intron id\tRefSeq intron id\tTranscript id\tGene id\tCoordinates\n"
     file_in_transcript.write(header_transcript)
     file_in_intron.write(header_intron)
 
     for key,value in Dataset_complete.items():
-        trans_id = key
+        trans_id = key.split('(')[0]
         intron_for_transcript = value
+        # On récupère les objets introns correspondant au transcrit :
+        introns_for_Ens_data = Ens_data[key]
         # On récupère l'id du gene correspondant au transcrit
-        gene_id_for_transcript = Ens_data[key][0][1].gene_id
+        gene_id_for_transcript = introns_for_Ens_data[0][1].gene_id
         # On détermine l'annotation du transcrit :
         Intron_annotation,Annotation_status = annotation_for_transcript(intron_for_transcript)
-        line = key+"\t"+gene_id_for_transcript+"\t"+Intron_annotation+"\t"+Annotation_status+"\n"
+        # Incrémentation des compteurs :
+        if Intron_annotation == "NA":
+            NA_count+=1
+        elif Intron_annotation == "Incomplet":
+            Partial_count+=1
+        elif Intron_annotation == "Complet":
+            Complet_count+=1
+            if Annotation_status == "Full":
+                Full_count+=1
+            else:
+                Patchwork_count+=1
 
-        for elmt in value:
+        line = trans_id+"\t"+gene_id_for_transcript+"\t"+Intron_annotation+"\t"+Annotation_status+"\n"
+        file_in_transcript.write(line)
+        # On créer un dictionnaire contenant les objets introns avec leur annotations
+        intron_object_dictionnary = {elmt[0]:elmt[1] for elmt in introns_for_Ens_data}
 
+        for intron in intron_for_transcript:
+            # On récupère les annotations sous forme d'objet
+            intron_object = intron_object_dictionnary[intron[0]]
+            # On récupère l'identifiant à partir de l'objet
+            intron_id = intron_object.id
+            # On récupère l'id refseq associé à notre intron Ensembl
+            # Si NA, l'information n'est pas sous forme de liste, donc on fait une condition pour récupérer l'information correctement
+            RefSeq_intron_id = intron[1][0] if type(intron[1]) == list else intron[1]
+            # L'id du transcrit est deja obtenue via trans_id
+            # L'id du gène est déja obtenue via gene_id_for_transcript
+            # On récupère les coordonnées
+            intron_coords = intron_object.coords
+            line = intron_id+"\t"+RefSeq_intron_id+"\t"+trans_id+"\t"+gene_id_for_transcript+"\t"+intron_coords+"\n"
+            file_in_intron.write(line)
 
+    file_in_intron.close()
+    file_in_transcript.close()
+    print("Transcrits complets :",Complet_count,Full_count,"avec le même id et",Patchwork_count,"avec des ids différents")
+    print("Transcrits incomplets avec au moins un intron sans id braunch :",Partial_count)
+    print("Transcrits non annotés d'un id braunch :",NA_count)
 
 
 # Fonction qui va annoter un transcrit et indiquer si il est complet, incomplet, ou patchwork
@@ -180,9 +220,10 @@ for elmts in opts:
         annotation_braunch = elmts[1]
     elif elmts[0] == '--intron_ens':
         annotation_ens = elmts[1]
-Ens_data = get_ens_intron_coord('/Users/Vincent/Documents/STAGE_LYON/Projet_stage_RV/results/file_for_NMD/list_and_fasta_v2/list_intron.tab')
-Braunch_coord = get_braunch_intron_coord('/Users/Vincent/Documents/STAGE_LYON/Projet_stage_RV/data/DataBraunschweig/TableS6_IntronsHuman.tab')
+Ens_data = get_ens_intron_coord(annotation_ens)
+Braunch_coord = get_braunch_intron_coord(annotation_braunch)
 association = association_between_Ensembl_and_Braunch(Ens_data,Braunch_coord)
 dataset,more_one_id = check_association_for_transcript(association,Ens_data)
 Dataset_without_doublon = no_doublon(dataset,more_one_id)
 Dataset_complete = fusion_dataset(dataset,Dataset_without_doublon)
+writing_annotation_file(output_file_trans,output_file_intron,Ens_data,Dataset_complete)
