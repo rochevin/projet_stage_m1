@@ -504,7 +504,7 @@ def next_stop(seq,intron_seq,intron_start):
 ##########################################################
 ##################FONCTIONS BORNES UTR####################
 ##########################################################
-def intron_density_in_UTR_test(transcript_complete):
+def intron_density_in_UTR(transcript_complete):
 	# On définit deux dictionnaires qui contiendrons les fenêtres des régions 5' et 3'
 	five_UTR_density = {}
 	transcript_for_windows_in_five_UTR = {}
@@ -600,4 +600,4 @@ intron_by_transcript = get_all_intron_for_transcript(liste_intron,seq_info)
 transcript_complete = association_between_intron_and_exon(intron_by_transcript,CDS_by_transcript)
 # Pour chaque transcrit, on annote chaque intron du transcrit pour vérifier si il est NMD visible
 PTC_dic = PTC_annotation(transcript_complete)
-
+five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR = intron_density_in_UTR(transcript_complete)
