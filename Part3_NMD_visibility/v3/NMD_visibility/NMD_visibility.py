@@ -159,7 +159,7 @@ class PTCInfo(IntronInfo):
 		self.trans_start = intron_start
 
 	def format_print(self):
-		return self.id+"\t"+self.transcript+"\t"+self.gene_id+"\t"+self.CDS_status+"\t"+str(self.dist_last_intron)+"\t"+str(self.dist_next_stop)+"\t"+str(self.dist_CDS_stop)+"\t"+self.PTC_status+"\t"+str(self.position)+"\t"+str(self.phase)+"\n"
+		return self.id+"\t"+self.trans_id+"\t"+self.gene_id+"\t"+self.CDS_status+"\t"+str(self.dist_last_intron)+"\t"+str(self.dist_next_stop)+"\t"+str(self.dist_CDS_stop)+"\t"+self.PTC_status+"\t"+str(self.position)+"\t"+str(self.phase)+"\n"
 
 
 class TranscriptAnnotate(object):
@@ -620,7 +620,7 @@ def write_file_for_transcript(CDS_dic,file_name_for_transcript):
 		Bed_format = chromosome+"\t"+transcript_start+"\t"+transcript_end
 		# On enregistre les annotations pour les transcrits et les introns
 		annotations_transcript=transcript_object.format_print()
-		line_out_intron = Bed_format+"\t"+annotations_transcript
+		line_out_transcript = Bed_format+"\t"+annotations_transcript
 		file_out_transcript.write(line_out_transcript)
 
 	file_out_transcript.close()
@@ -646,9 +646,10 @@ def write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_fi
 
 # Fonction secondaire à la fonction d'écriture des fenêtres
 def write_fonction(dictionnary_one,dictionnary_two,file_out):
-	for key,value in dictionnary_one.items():
+	for key,value in sorted(dictionnary_one.items()):
 		value_for_key_in_dictionnary_two = dictionnary_two[key]
-		line = key+"\t"+value+"\t"+value_for_key_in_dictionnary_two+"\n"
+		window_limits = "-".join(str(x) for x in key)
+		line = "("+window_limits+")"+"\t"+str(value)+"\t"+str(value_for_key_in_dictionnary_two)+"\n"
 		file_out.write(line)
 # Interface avec l'utilisateur :
 opts, args = getopt.getopt(sys.argv[1:],'',['liste_exon=','liste_intron=','fasta=','output_transcript=','output_intron=','output_windows=',])
@@ -690,6 +691,6 @@ five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript
 # -Pour les introns :
 write_file_for_intron(PTC_dic,output_file_intron)
 # -Pour les transcrits :
-write_file_for_transcript(CDS_dic,file_name_for_transcript)
+write_file_for_transcript(CDS_dic,output_file_transcript)
 # Pour les fenêtres des UTRs
-write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,file_name)
+write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,output_file_windows)

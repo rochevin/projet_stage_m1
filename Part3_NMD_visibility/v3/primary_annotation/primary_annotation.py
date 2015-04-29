@@ -18,7 +18,6 @@ import os # On importe os pour éxecuter des commandes terminal dans python
 from Bio import SeqIO # On importe seqIO pour parser le fichier fasta
 from Bio.Seq import Seq
 
-
 # Définition des classes :
 
 # Classe qui va contenir l'annotation Ensembl de chaque intron
