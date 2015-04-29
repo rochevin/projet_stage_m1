@@ -96,10 +96,7 @@ class TranscriptInfo(object):
 		# Sinon on envoi l'annotation OK
 		else:
 			return "OK"
-	# On récupère la position d'un exon dans la liste des exons
-	def exon_position(self,one_exon):
-		exon_in_list = self.exons.index(one_exon)
-		return self.exon_pos[exon_in_list]
+
 
 
 class ExonInfo(object):
@@ -148,12 +145,10 @@ class IntronInfo(object):
 			return self.seq
 
 # Classes qui vont contenir nos annotations, afin qu'elles soient écrites dans des fichiers
-class PTCInfo(object):
+class PTCInfo(IntronInfo):
 	"Classe qui contiendra les annotations de chaque intron pour la NMD visibilité"
-	def __init__(self,intron_id,transcript,gene_id,CDS_status,dist_last_intron,dist_next_stop,dist_CDS_stop,PTC_status,intron_position,intron_phase,intron_start):
-		self.id = intron_id
-		self.transcript = transcript
-		self.gene_id = gene_id
+	def __init__(self,intron_id,trans_id,gene_id,coords,seq,CDS_status,dist_last_intron,dist_next_stop,dist_CDS_stop,PTC_status,intron_position,intron_phase,intron_start):
+		IntronInfo.__init__(self,intron_id,trans_id,gene_id,coords,seq)
 		self.CDS_status = CDS_status
 		self.dist_last_intron = dist_last_intron
 		self.dist_next_stop = dist_next_stop
@@ -161,7 +156,7 @@ class PTCInfo(object):
 		self.PTC_status = PTC_status
 		self.position = intron_position
 		self.phase = intron_phase
-		self.start = intron_start
+		self.trans_start = intron_start
 
 	def format_print(self):
 		return self.id+"\t"+self.transcript+"\t"+self.gene_id+"\t"+self.CDS_status+"\t"+str(self.dist_last_intron)+"\t"+str(self.dist_next_stop)+"\t"+str(self.dist_CDS_stop)+"\t"+self.PTC_status+"\t"+str(self.position)+"\t"+str(self.phase)+"\n"
@@ -169,7 +164,7 @@ class PTCInfo(object):
 
 class TranscriptAnnotate(object):
 	"Classe qui contiendra les annotations du transcrit"
-	def __init__(trans_id,gene_id,status,trans_chr,trans_start,trans_end,intron_number,exon_number,intron_bf_stop):
+	def __init__(self,trans_id,gene_id,status,trans_chr,trans_start,trans_end,intron_number,exon_number,intron_bf_stop):
 		self.id = trans_id
 		self.gene_id = gene_id
 		self.chr = trans_chr
@@ -181,7 +176,7 @@ class TranscriptAnnotate(object):
 		self.intron_bf_stop = intron_bf_stop
 
 	def format_print(self):
-		return self.id+"\t"+self.gene_id+"\t"+self.status+"\t"+self.intron_number+"\t"+self.exon_number+"\t"+self.intron_bf_stop+"\n"
+		return self.id+"\t"+self.gene_id+"\t"+self.status+"\t"+str(self.intron_number)+"\t"+str(self.exon_number)+"\t"+str(self.intron_bf_stop)+"\n"
 
 
 # Fonctions qui servent à l'objet :
@@ -325,10 +320,10 @@ def CDS_annotation(transcript_complete):
 		# Identifiant du gène du transcrit :
 		gene_id = trans_object.gene_id
 		# Chromosome
-		chromosome = transcript_object.chr
+		chromosome = trans_object.chr
 		# Début/fin du transcrit :
-		transcript_start = transcript_object.start
-		transcript_end = transcript_object.end
+		transcript_start = trans_object.start
+		transcript_end = trans_object.end
 		# Status du CDS du transcrit :
 		CDS_status = trans_object.type
 		# Nombre d'intron :
@@ -352,7 +347,7 @@ def CDS_annotation(transcript_complete):
 # -Phase de l'intron
 # -Si PTC en cas de rétention
 # -Distance en bp entre le stop du CDS et la position de l'intron en cas de rétention
-# -Distance en bp du prochain intron en cas de rétention
+# -Distance en bp du dernier intron en cas de rétention
 # -Distance en bp du prochain stop en cas de rétention
 def PTC_annotation(transcript_complete):
 	PTC_dic = {}
@@ -414,7 +409,7 @@ def PTC_annotation(transcript_complete):
 			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start)
 
 			# On enregistre toutes nos annotations dans un objet NMD, qu'on enregistre dans un dictionnaire
-			PTC_info = PTCInfo(intron_id,transcript_id,gene_id,CDS_status,dist_intron_last_intron,dist_next_stop,dist_intron_CDS_stop,PTC_status,intron_rank,intron_phase,intron_start)
+			PTC_info = PTCInfo(intron_object.id,intron_object.trans_id,intron_object.gene_id,intron_object.coords,intron_object.seq,CDS_status,dist_intron_last_intron,dist_next_stop,dist_intron_CDS_stop,PTC_status,intron_rank,intron_phase,intron_start)
 			PTC_dic[PTC_info.id] = PTC_info
 	print ("Introns NMD visibles :",intron_NMD,"sur",total_intron)
 	print("No NMD :",no_NMD)
@@ -594,18 +589,16 @@ def calcul_density(UTR_density,introns,windows,reverse):
 	return(UTR_density)
 
 # Fonction d'écriture du fichier de sortie pour les introns
-def write_file_for_intron(PTC_dic,transcript_complete,file_name_for_intron):
+def write_file_for_intron(PTC_dic,file_name_for_intron):
 
 	file_out_intron=open(file_name_for_intron,"w")
 	for key,value in PTC_dic.items():
-		#On récupère les annotations sur le transcrit
-		transcript_object = transcript_complete[value.transcript]
 		# Préparation du format BED
-		chromosome = transcript_object.chr
-		transcript_start = transcript_object.start
-		transcript_end = transcript_object.end
+		chromosome = value.chr
+		intron_start = value.start
+		intron_end = value.end
 		# Écriture des lignes BED obligatoires :
-		Bed_format = chromosome+"\t"+transcript_start+"\t"+transcript_end
+		Bed_format = chromosome+"\t"+intron_start+"\t"+intron_end
 		# On enregistre les annotations pour les transcrits et les introns
 		annotations_intron=value.format_print()
 		line_out_intron = Bed_format+"\t"+annotations_intron
@@ -616,9 +609,8 @@ def write_file_for_intron(PTC_dic,transcript_complete,file_name_for_intron):
 # Fonction d'écriture du fichier de sortie pour les transcrits
 def write_file_for_transcript(CDS_dic,file_name_for_transcript):
 
-	file_out_transcript=open(file_name_for_intron,"w")
-	file_out_intron=open(file_name_for_intron,"w")
-	for value in PTC_dic.values():
+	file_out_transcript=open(file_name_for_transcript,"w")
+	for value in CDS_dic.values():
 		transcript_object = value
 		# Préparation du format BED
 		chromosome = transcript_object.chr
@@ -636,8 +628,8 @@ def write_file_for_transcript(CDS_dic,file_name_for_transcript):
 # Fonction d'écriture du fichier des fenêtres
 def write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,file_name):
 	# On prépare le nom pour les deux fichiers
-	file_for_five_prime = "5_"+file_name
-	file_for_three_prime = "3_"+file_name
+	file_for_five_prime = "/".join(file_name.split('/')[:-1])+"/5_"+file_name.split('/')[-1]
+	file_for_three_prime = "/".join(file_name.split('/')[:-1])+"/3_"+file_name.split('/')[-1]
 	# On créer les deux fichiers, un pour chaque région
 	file_out_five = open(file_for_five_prime,"w")
 	file_out_three = open(file_for_three_prime,"w")
@@ -659,7 +651,7 @@ def write_fonction(dictionnary_one,dictionnary_two,file_out):
 		line = key+"\t"+value+"\t"+value_for_key_in_dictionnary_two+"\n"
 		file_out.write(line)
 # Interface avec l'utilisateur :
-opts, args = getopt.getopt(sys.argv[1:],'',['liste_exon=','liste_intron=','fasta=','output_transcript=','output_intron=','output_windows='])
+opts, args = getopt.getopt(sys.argv[1:],'',['liste_exon=','liste_intron=','fasta=','output_transcript=','output_intron=','output_windows=',])
 for elmts in opts:
 	if elmts[0] == '--liste_exon':
 		liste_exon = elmts[1] # Fichier contenant les coordonnées pour chaque exon : liste_exon.tab
@@ -671,13 +663,13 @@ for elmts in opts:
 		fasta_file = elmts[1] # Fichier contenant les séquences au format fasta des exons et des introns : seq.fa
 
 	elif elmts[0] == '--output_transcript': # Variable qui va contenir le nom de fichier de sortie
-		output_file = elmts[1]
+		output_file_transcript = elmts[1]
 
 	elif elmts[0] == '--output_intron': # Variable qui va contenir le nom de fichier de sortie
-		output_file = elmts[1]
+		output_file_intron = elmts[1]
 
 	elif elmts[0] == '--output_windows': # Variable qui va contenir le nom de fichier de sortie
-		output_file = elmts[1]
+		output_file_windows = elmts[1]
 
 # Lancement des fonctions :
 # Récupération des séquences fasta
@@ -694,3 +686,10 @@ PTC_dic = PTC_annotation(transcript_complete)
 CDS_dic = CDS_annotation(transcript_complete)
 # On lance la fonction qui va permettre de calculer la densité des fenêtres UTR
 five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR = intron_density_in_UTR(transcript_complete)
+# On lance les fonctions d'écritures :
+# -Pour les introns :
+write_file_for_intron(PTC_dic,output_file_intron)
+# -Pour les transcrits :
+write_file_for_transcript(CDS_dic,file_name_for_transcript)
+# Pour les fenêtres des UTRs
+write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,file_name)
