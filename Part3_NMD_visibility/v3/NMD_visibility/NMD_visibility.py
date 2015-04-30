@@ -638,19 +638,24 @@ def write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_fi
 	file_out_five.write(head)
 	file_out_three.write(head)
 	# On lance les deux fonctions d'écritures pour les deux fichiers
-	write_fonction(transcript_for_windows_in_five_UTR,five_UTR_density,file_out_five)
-	write_fonction(transcript_for_windows_in_three_UTR,three_UTR_density,file_out_three)
+	for key,value in sorted(transcript_for_windows_in_five_UTR.items(), reverse = True):
+		if key[0] < 0 or key[1] < 0 :
+			continue
+		value_for_key_in_five_UTR_density = five_UTR_density[key]
+		window_limits = "".join("%s-%s" % key)
+		line = "("+window_limits+")"+"\t"+str(value)+"\t"+str(value_for_key_in_five_UTR_density)+"\n"
+		file_out_five.write(line)
+	for key,value in sorted(transcript_for_windows_in_three_UTR.items()):
+		if key[0] < 0 or key[1] < 0 :
+			continue
+		value_for_key_in_three_UTR_density = three_UTR_density[key]
+		window_limits = "".join("%s-%s" % key)
+		line = "("+window_limits+")"+"\t"+str(value)+"\t"+str(value_for_key_in_three_UTR_density)+"\n"
+		file_out_three.write(line)
 	# On ferme les deux fichiers
 	file_out_five.close()
 	file_out_three.close()
 
-# Fonction secondaire à la fonction d'écriture des fenêtres
-def write_fonction(dictionnary_one,dictionnary_two,file_out):
-	for key,value in sorted(dictionnary_one.items()):
-		value_for_key_in_dictionnary_two = dictionnary_two[key]
-		window_limits = "-".join(str(x) for x in key)
-		line = "("+window_limits+")"+"\t"+str(value)+"\t"+str(value_for_key_in_dictionnary_two)+"\n"
-		file_out.write(line)
 # Interface avec l'utilisateur :
 opts, args = getopt.getopt(sys.argv[1:],'',['liste_exon=','liste_intron=','fasta=','output_transcript=','output_intron=','output_windows=',])
 for elmts in opts:
