@@ -53,8 +53,8 @@ class TranscriptInfo(object):
 		# Bornes 3' UTR :
 		self.three_UTR_region = (self.cds_stop+1,len(self.seq)-1)
 		# Fenetres de position pour les régions 5' et 3' UTR
-		self.five_UTR_windows = [(c,c-29) for c in cumsum_for_5UTR(self.five_UTR_region[1],self.five_UTR_region[0],-30)]
-		self.three_UTR_windows = [(c,c+29) for c in cumsum_for_3UTR(self.three_UTR_region[0],self.three_UTR_region[1],30)]
+		self.five_UTR_windows = [(c,c-29) for c in cumsum_for_5UTR(self.five_UTR_region[1],self.five_UTR_region[0],-30) if c-29 >= self.five_UTR_region[0]]
+		self.three_UTR_windows = [(c,c+29) for c in cumsum_for_3UTR(self.three_UTR_region[0],self.three_UTR_region[1],30) if c+29 <= self.three_UTR_region[1]]
 		# Introns dans les régions UTRs :
 		self.intron_in_five_UTR = [elmt[0] for elmt in self.intron_pos if elmt[0] <= self.five_UTR_region[1]]
 		self.intron_in_three_UTR = [elmt[0] for elmt in self.intron_pos if elmt[0] >= self.three_UTR_region[0]]
@@ -526,13 +526,17 @@ def intron_density_in_UTR(transcript_complete):
 		# UTR window :
 		five_windows = trans_object.five_UTR_windows
 		three_windows = trans_object.three_UTR_windows
+		five_UTR_region = trans_object.five_UTR_region
+		three_UTR_region = trans_object.three_UTR_region
+		five_windows = [(elmt[0]-five_UTR_region[1],elmt[1]-five_UTR_region[1]) for elmt in five_windows]
+		three_windows = [(elmt[0]-three_UTR_region[0],elmt[1]-three_UTR_region[0]) for elmt in three_windows]
 		# On construit le dictionnaire en initialisant les valeurs à 0 :
 		# On construit également le dictionnaire qui contiendra le nombre de transcrit possédant chaque fenêtres
 		five_UTR_density,transcript_for_windows_in_five_UTR = dictionnary_construction(UTR_windows=five_windows,UTR_dictionnary=five_UTR_density,transcript_dictionnary=transcript_for_windows_in_five_UTR)
 		three_UTR_density,transcript_for_windows_in_three_UTR = dictionnary_construction(UTR_windows=three_windows,UTR_dictionnary=three_UTR_density,transcript_dictionnary=transcript_for_windows_in_three_UTR)
 		# Introns in UTR :
-		five_introns = trans_object.intron_in_five_UTR
-		three_introns = trans_object.intron_in_three_UTR
+		five_introns = [elmt-five_UTR_region[1] for elmt in trans_object.intron_in_five_UTR]
+		three_introns = [elmt-three_UTR_region[0] for elmt in trans_object.intron_in_three_UTR]
 		# Assignation du nombre d'introns par fenêtres :
 		# Pour le 5' UTR
 		five_UTR_density = calcul_density(UTR_density=five_UTR_density,introns=five_introns,windows=five_windows,reverse=True)
@@ -634,23 +638,17 @@ def write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_fi
 	file_out_five = open(file_for_five_prime,"w")
 	file_out_three = open(file_for_three_prime,"w")
 	# On prépare et écris l'en tête
-	head = "Windows(30 bp)\tTranscripts for this windows\tIntrons in windows\n"
+	head = "Begin\tEnd\tTranscripts for windows\tIntrons in windows\n"
 	file_out_five.write(head)
 	file_out_three.write(head)
 	# On lance les deux fonctions d'écritures pour les deux fichiers
-	for key,value in sorted(transcript_for_windows_in_five_UTR.items(), reverse = True):
-		if key[0] < 0 or key[1] < 0 :
-			continue
+	for key,value in sorted(transcript_for_windows_in_five_UTR.items(), reverse=True):
 		value_for_key_in_five_UTR_density = five_UTR_density[key]
-		window_limits = "".join("%s-%s" % key)
-		line = "("+window_limits+")"+"\t"+str(value)+"\t"+str(value_for_key_in_five_UTR_density)+"\n"
+		line = str(key[0])+"\t"+str(key[1])+"\t"+str(value)+"\t"+str(value_for_key_in_five_UTR_density)+"\n"
 		file_out_five.write(line)
 	for key,value in sorted(transcript_for_windows_in_three_UTR.items()):
-		if key[0] < 0 or key[1] < 0 :
-			continue
 		value_for_key_in_three_UTR_density = three_UTR_density[key]
-		window_limits = "".join("%s-%s" % key)
-		line = "("+window_limits+")"+"\t"+str(value)+"\t"+str(value_for_key_in_three_UTR_density)+"\n"
+		line = str(key[0])+"\t"+str(key[1])+"\t"+str(value)+"\t"+str(value_for_key_in_three_UTR_density)+"\n"
 		file_out_three.write(line)
 	# On ferme les deux fichiers
 	file_out_five.close()
@@ -699,3 +697,41 @@ write_file_for_intron(PTC_dic,output_file_intron)
 write_file_for_transcript(CDS_dic,output_file_transcript)
 # Pour les fenêtres des UTRs
 write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,output_file_windows)
+
+# RAJOUT CDS
+
+# for key,value in transcript_complete.items():
+# 	value.CDS_region = (value.cds_start+1,value.cds_stop)
+# 	value.CDS_windows = [(c,c+29) for c in cumsum_for_3UTR(value.CDS_region[0],value.CDS_region[1],30) if c+29 <= value.CDS_region[1]]
+# 	value.intron_in_CDS = [elmt[0] for elmt in value.intron_pos if (elmt[0] >= value.CDS_region[0] and elmt[0] <= value.CDS_region[1])]
+
+
+def intron_density_in_CDS(transcript_complete):
+	# On définit deux dictionnaires qui contiendrons les fenêtres des régions 5' et 3'
+	CDS_density = {}
+	transcript_in_CDS = {}
+	# Pour chaque transcrit de notre jeu de données
+	for trans_id,trans_object in transcript_complete.items():
+		CDS_region = trans_object.CDS_region
+		CDS_windows = [(elmt[0]-CDS_region[0],elmt[1]-CDS_region[0]) for elmt in trans_object.CDS_windows]
+		CDS_introns = [elmt-CDS_region[0] for elmt in trans_object.intron_in_CDS]
+		# On construit également le dictionnaire qui contiendra le nombre de transcrit possédant chaque fenêtres
+		CDS_density,transcript_for_windows_in_five_UTR = dictionnary_construction(UTR_windows=CDS_windows,UTR_dictionnary=CDS_density,transcript_dictionnary=transcript_in_CDS)
+		CDS_density = calcul_density(UTR_density=CDS_density,introns=CDS_introns,windows=CDS_windows,reverse=False)
+	return(CDS_density,transcript_in_CDS)
+
+def write_file_for_CDS_density(CDS_density,transcript_in_CDS,file_name):
+	# On prépare le nom pour les deux fichiers
+	file_CDS = "/".join(file_name.split('/')[:-1])+"/CDS_"+file_name.split('/')[-1]
+	# On créer les deux fichiers, un pour chaque région
+	file_out = open(file_CDS,"w")
+	# On prépare et écris l'en tête
+	head = "Begin\tEnd\tTranscripts for windows\tIntrons in windows\n"
+	file_out.write(head)
+	# On lance les deux fonctions d'écritures pour les deux fichiers
+	for key,value in sorted(transcript_in_CDS.items()):
+		value_for_key_in_CDS_density = CDS_density[key]
+		line = str(key[0])+"\t"+str(key[1])+"\t"+str(value)+"\t"+str(value_for_key_in_CDS_density)+"\n"
+		file_out.write(line)
+	# On ferme les deux fichiers
+	file_out.close()
