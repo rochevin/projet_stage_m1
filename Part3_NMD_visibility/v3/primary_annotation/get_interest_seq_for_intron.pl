@@ -1,6 +1,6 @@
 use Bio::EnsEMBL::Registry;
+use Bio::EnsEMBL::Utils::Sequence qw(reverse_comp);
 use Bio::SeqIO;
-
 
 # Définition du socket MYSQL pour que DBI utilise la bonne base de données
 $ENV{MYSQL_UNIX_PORT} = "/Applications/MAMP/tmp/mysql/mysql.sock";
@@ -54,6 +54,7 @@ foreach my$id (keys %gene_list) {
 	while (my $intron = shift @introns) {
 		my $begin_seq = "";
 		my $end_seq = "";
+		my $intron_strand = $intron->strand();
 		# On détermine l'identifiant de l'intron selon notre méthode
 		my $intron_id = $intron->prev_Exon->display_id()."_".$intron->next_Exon->display_id();
 		# On enregistre ses coordonnées dans le chromosome
@@ -61,37 +62,26 @@ foreach my$id (keys %gene_list) {
 		my $fin_intron = $intron->end();
 		print "Identifiant de l'intron :".$intron_id."\nCoordonnées : ".$debut_intron."-".$fin_intron."\n";
 		print "Région de l'intron : ".$seq_region."\n";
-		print "Coordonnées des séquences d'intérêt : \n";
 		# On détermine nos séquences d'intérêts et on récupère la séquence :
 		# Pour la séquence de début
 		my $debut = $debut_intron-20;
-		my $fin = $debut_intron+29;
-		print "Séquence début : ".$debut."-".$fin."\n";
-		my $slice = $slice_adaptor->fetch_by_region( 'chromosome', $seq_region, $debut, $fin );
-		if (defined $slice){
-			$begin_seq = $slice->seq();
-		}else {
-			($seq_exon_left,$seq_exon_right) = get_seq_with_exon($intron);
-			$begin_seq = $seq_exon_left.substr($intron->seq(),0,30);
-		}
-		# On définit un objet Bio::Seq pour la séquence
-		my $begin_fasta_seq = Bio::Seq->new(-display_id => $intron_id, -seq => $begin_seq,-description => "first");
-		# Puis on l'écris dans le fichier
-		$out->write_seq($begin_fasta_seq);
-		# Pour la séquence de fin 
-		my $debut = $fin_intron-29;
 		my $fin = $fin_intron+20;
-		print "Séquence fin : ".$debut."-".$fin."\n";
-		my $slice = $slice_adaptor->fetch_by_region( 'chromosome', $seq_region, $debut, $fin );
+		my $slice = $slice_adaptor->fetch_by_region( 'chromosome', $seq_region, $debut, $fin ,$intron_strand);
 		if (defined $slice){
-			$end_seq = $slice->seq();
+			$full_seq = $slice->seq();
 		}else {
-			($seq_exon_left,$seq_exon_right) = get_seq_with_exon($intron);
-			$end_seq = substr($intron->seq(),length($intron->seq())-30).$seq_exon_right;
+			$full_seq = get_seq_with_exon($intron);
 		}
-		# On définit un objet Bio::Seq pour la séquence
+		# Si le brin est -, on fait le reverse complement de la séquence
+		reverse_comp(\$full_seq) if ($intron_strand<0);
+		# On détermine nos séquences d'intérêt
+		my $begin_seq = substr($full_seq,0,50);
+		my $end_seq = substr($full_seq,-50);
+		# On définit un objet Bio::Seq pour les séquences
+		my $begin_fasta_seq = Bio::Seq->new(-display_id => $intron_id, -seq => $begin_seq,-description => "first");
 		my $end_fasta_seq = Bio::Seq->new(-display_id => $intron_id, -seq => $end_seq,-description => "last");
-		# Puis on l'écris dans le fichier
+		# Puis on écris les séquences dans les fichier
+		$out->write_seq($begin_fasta_seq);
 		$out->write_seq($end_fasta_seq);
 	}
 }
