@@ -40,17 +40,16 @@ class IntronAnnotation(object):
         self.start = result[0][2]
         self.end = result[0][3]
 
-        self.seq = self.get_seq(seq,minimal_len)
+        self.minimal_len = minimal_len
+        self.seq = self.get_seq(seq)
         self.len_seq = len(seq)
 
-        self.seq_left = self.seq_interest_construction(seq_left,minimal_len)
-        self.seq_right = self.seq_interest_construction(seq_right,minimal_len)
+        self.seq_left = seq_left
+        self.seq_right = seq_right
 
-    def get_seq(self,sequence,minimal_len):
-        if len(sequence)<minimal_len:
+    def get_seq(self,sequence):
+        if len(sequence)<self.minimal_len:
             return "NA"
-        if self.strand == "-":
-            return sequence.reverse_complement()
         else:
             return sequence
     # Calcul du taux de GC à partir de la séquence fasta
@@ -72,8 +71,8 @@ class IntronAnnotation(object):
             return GCrate
         else:
             return "NA"
-    def seq_interest_construction(self,seq,minimal_len):
-        if len(self.seq)<minimal_len:
+    def seq_interest_construction(self,seq):
+        if len(self.seq)<self.minimal_len:
             return "NA"
         if self.strand == "-":
             return seq.reverse_complement()
@@ -174,8 +173,8 @@ def print_data(file_name,transcript_complete, len_GC = 40):
             # On récupère la position de l'intron par rapport aux autres :
             position = intron_list.index(intron_and_coords)+1
             # On récupère les séquences d'intérêts :
-            seq_left = intron.seq_left
-            seq_right = intron.seq_right
+            seq_left = intron.seq_interest_construction(intron.seq_left)
+            seq_right = intron.seq_interest_construction(intron.seq_right)
             # On calcule le taux de GC :
             total_len = len(seq_left) # Détermine les bords de la séquence minimale de l'intron moins les nucleotides d'intéret
             intron_GC = intron.GCrate(total_len,len_GC)
