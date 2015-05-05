@@ -178,7 +178,7 @@ def print_data(file_name,transcript_complete, len_GC = 40):
             # On calcule le taux de GC :
             total_len = len(seq_left) # Détermine les bords de la séquence minimale de l'intron moins les nucleotides d'intéret
             intron_GC = intron.GCrate(total_len,len_GC)
-            line = intron.id+"\t"+trans_id+"\t"+intron.gene_id+"\t"+intron.coords+"\t"+str(seq_left)+"\t"+str(seq_right)+"\t"+str(intron.len_seq)+"\t"+str(position)+"\t"+str(numbers_of_introns)+"\t"+str(intron_GC)+"\n"
+            line = intron.chr+"\t"+intron.start+"\t"+intron.end+"\t"+intron.id+"\t"+trans_id+"\t"+intron.gene_id+"\t"+str(seq_left)+"\t"+str(seq_right)+"\t"+str(intron.len_seq)+"\t"+str(position)+"\t"+str(numbers_of_introns)+"\t"+str(intron_GC)+"\n"
             file_out.write(line)
     file_out.close()
 

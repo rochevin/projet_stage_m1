@@ -1,5 +1,5 @@
 use Bio::EnsEMBL::Registry;
-use Bio::EnsEMBL::Utils::Sequence qw(reverse_comp);
+use Bio::Seq;
 use Bio::SeqIO;
 
 # Définition du socket MYSQL pour que DBI utilise la bonne base de données
@@ -43,6 +43,8 @@ my $slice_adaptor=$r->get_adaptor("Human" ,"core", "Slice");
 foreach my$id (keys %gene_list) {
 	my $gene = $gene_adaptor->fetch_by_stable_id($id);
 
+	my $gene_strand = $gene->strand();
+
 	my $canonical_transcript=$gene->canonical_transcript();
 
 	my $seq_region = $canonical_transcript->seq_region_name();
@@ -54,7 +56,6 @@ foreach my$id (keys %gene_list) {
 	while (my $intron = shift @introns) {
 		my $begin_seq = "";
 		my $end_seq = "";
-		my $intron_strand = $intron->strand();
 		# On détermine l'identifiant de l'intron selon notre méthode
 		my $intron_id = $intron->prev_Exon->display_id()."_".$intron->next_Exon->display_id();
 		# On enregistre ses coordonnées dans le chromosome
@@ -66,17 +67,22 @@ foreach my$id (keys %gene_list) {
 		# Pour la séquence de début
 		my $debut = $debut_intron-20;
 		my $fin = $fin_intron+20;
-		my $slice = $slice_adaptor->fetch_by_region( 'chromosome', $seq_region, $debut, $fin ,$intron_strand);
+		my $slice = $slice_adaptor->fetch_by_region( 'chromosome', $seq_region, $debut, $fin );
 		if (defined $slice){
 			$full_seq = $slice->seq();
 		}else {
 			$full_seq = get_seq_with_exon($intron);
 		}
 		# Si le brin est -, on fait le reverse complement de la séquence
-		reverse_comp(\$full_seq) if ($intron_strand<0);
+		if (($gene_strand<0)&&(defined $slice)) {
+			$full_seq = Bio::Seq->new(-seq => $full_seq);
+			$full_seq->revcom;
+			$full_seq= $full_seq->seq();
+		}
 		# On détermine nos séquences d'intérêt
 		my $begin_seq = substr($full_seq,0,50);
 		my $end_seq = substr($full_seq,-50);
+		($begin_seq,$end_seq) = ($end_seq,$begin_seq) if (($gene_strand<0)&&(defined $slice));
 		# On définit un objet Bio::Seq pour les séquences
 		my $begin_fasta_seq = Bio::Seq->new(-display_id => $intron_id, -seq => $begin_seq,-description => "first");
 		my $end_fasta_seq = Bio::Seq->new(-display_id => $intron_id, -seq => $end_seq,-description => "last");
@@ -93,8 +99,6 @@ sub get_seq_with_exon {
 	$exon_right_seq = $intron->next_Exon->seq->seq;
 	$sub_seq_left = substr($exon_left_seq,length($exon_left_seq)-20);
 	$sub_seq_right = substr($exon_right_seq,0,20);
-	print "Slice marche pas, donc on test les séquences des exons : \n";
-	print $sub_seq_left."\n";
-	print $sub_seq_right."\n";
-	return($sub_seq_left,$sub_seq_right);
+	my $seq = $sub_seq_left.$intron->seq().$sub_seq_right;
+	return($seq);
 }
