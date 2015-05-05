@@ -159,7 +159,7 @@ class PTCInfo(IntronInfo):
 		self.trans_start = intron_start
 
 	def format_print(self):
-		return self.id+"\t"+self.trans_id+"\t"+self.gene_id+"\t"+self.CDS_status+"\t"+str(self.dist_last_intron)+"\t"+str(self.dist_next_stop)+"\t"+str(self.dist_CDS_stop)+"\t"+self.PTC_status+"\t"+str(self.position)+"\t"+str(self.phase)+"\n"
+		return self.id+"\t"+self.trans_id.split('(')[0]+"\t"+self.gene_id+"\t"+self.CDS_status+"\t"+str(self.dist_last_intron)+"\t"+str(self.dist_next_stop)+"\t"+str(self.dist_CDS_stop)+"\t"+self.PTC_status+"\t"+str(self.position)+"\t"+str(self.phase)+"\n"
 
 
 class TranscriptAnnotate(object):
