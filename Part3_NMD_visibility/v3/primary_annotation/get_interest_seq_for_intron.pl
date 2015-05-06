@@ -71,10 +71,12 @@ foreach my$id (keys %gene_list) {
 		if (defined $slice){
 			$full_seq = $slice->seq();
 		}else {
-			$full_seq = get_seq_with_exon($intron);
+			# $full_seq = get_seq_with_exon($intron);
+			my $slice = $slice_adaptor->fetch_by_region( 'supercontig', $seq_region, $debut, $fin );
+			$full_seq = $slice->seq();
 		}
 		# Si le brin est -, on fait le reverse complement de la séquence
-		if (($gene_strand<0)&&(defined $slice)) {
+		if ($gene_strand<0) {
 			$full_seq = Bio::Seq->new(-seq => $full_seq);
 			$full_seq->revcom;
 			$full_seq= $full_seq->seq();
@@ -82,7 +84,7 @@ foreach my$id (keys %gene_list) {
 		# On détermine nos séquences d'intérêt
 		my $begin_seq = substr($full_seq,0,50);
 		my $end_seq = substr($full_seq,-50);
-		($begin_seq,$end_seq) = ($end_seq,$begin_seq) if (($gene_strand<0)&&(defined $slice));
+		($begin_seq,$end_seq) = ($end_seq,$begin_seq) if ($gene_strand<0);
 		# On définit un objet Bio::Seq pour les séquences
 		my $begin_fasta_seq = Bio::Seq->new(-display_id => $intron_id, -seq => $begin_seq,-description => "first");
 		my $end_fasta_seq = Bio::Seq->new(-display_id => $intron_id, -seq => $end_seq,-description => "last");
