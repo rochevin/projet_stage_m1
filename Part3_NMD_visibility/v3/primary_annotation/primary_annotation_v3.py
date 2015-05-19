@@ -53,10 +53,10 @@ class IntronAnnotation(object):
         else:
             return sequence
     # Calcul du taux de GC à partir de la séquence fasta
-    def GCrate(self,total_len,nb_GC):
+    def GCrate(self,less_len=20,nb_GC=20):
         if self.seq != "NA":
             # Détermination des bp à prendre en compte pour faire le calcul de GC : les bords de la séquence minimale de l'intron moins les nucleotides d'intéret
-            intron_seq = self.seq[total_len:-total_len]
+            intron_seq = self.seq[less_len:-less_len]
             A = intron_seq.count('A')
             C = intron_seq.count('C')
             G = intron_seq.count('G')
@@ -157,7 +157,7 @@ def get_dictionnary_of_transcript(intron_by_transcript):
         transcript_complete[real_trans_id]=transcript_object
     return(transcript_complete)
 
-def print_data(file_name,transcript_complete, len_GC = 40):
+def print_data(file_name,transcript_complete, len_GC = 20,len_seq = 20):
     file_out = open(file_name,"w")
     header = "Intron id\tTranscript id\tGene id\tCoordinates\tSeq left\tSeq right\tIntron length\tIntron position\tTotal intron\tGC rate\n"
     file_out.write(header)
@@ -176,8 +176,7 @@ def print_data(file_name,transcript_complete, len_GC = 40):
             seq_left = intron.seq_interest_construction(intron.seq_left)
             seq_right = intron.seq_interest_construction(intron.seq_right)
             # On calcule le taux de GC :
-            total_len = len(seq_left) # Détermine les bords de la séquence minimale de l'intron moins les nucleotides d'intéret
-            intron_GC = intron.GCrate(total_len,len_GC)
+            intron_GC = intron.GCrate(len_seq,len_GC)
             line = intron.chr+"\t"+intron.start+"\t"+intron.end+"\t"+intron.id+"\t"+trans_id+"\t"+intron.gene_id+"\t"+str(seq_left)+"\t"+str(seq_right)+"\t"+str(intron.len_seq)+"\t"+str(position)+"\t"+str(numbers_of_introns)+"\t"+str(intron_GC)+"\n"
             file_out.write(line)
     file_out.close()
@@ -215,4 +214,4 @@ intron_by_transcript = get_all_intron_for_transcript(liste_intron,seq_info,dico_
 # Association des introns et des exons dans un transcrit
 transcript_complete = get_dictionnary_of_transcript(intron_by_transcript)
 # Ecriture des annotations
-print_data(transcript_complete=transcript_complete, len_GC = nb_GC,file_name=output_file_name)
+print_data(transcript_complete=transcript_complete, len_GC = nb_GC,file_name=output_file_name,len_seq=len_seq)

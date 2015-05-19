@@ -82,8 +82,8 @@ foreach my$id (keys %gene_list) {
 			$full_seq= $full_seq->seq();
 		}
 		# On détermine nos séquences d'intérêt
-		my $begin_seq = substr($full_seq,0,50);
-		my $end_seq = substr($full_seq,-50);
+		my $begin_seq = substr($full_seq,0,40);
+		my $end_seq = substr($full_seq,-40);
 		($begin_seq,$end_seq) = ($end_seq,$begin_seq) if ($gene_strand<0);
 		# On définit un objet Bio::Seq pour les séquences
 		my $begin_fasta_seq = Bio::Seq->new(-display_id => $intron_id, -seq => $begin_seq,-description => "first");
