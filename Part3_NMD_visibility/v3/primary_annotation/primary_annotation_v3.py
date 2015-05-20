@@ -44,6 +44,11 @@ class IntronAnnotation(object):
         self.seq = self.get_seq(seq)
         self.len_seq = len(seq)
 
+        self.donor_site = self.get_donor_site()
+        self.acceptor_site = self.get_acceptor_site()
+        self.five_first_bp = self.get_five_first_bp()
+        self.three_last_bp = self.get_three_last_bp()
+
         self.seq_left = seq_left
         self.seq_right = seq_right
 
@@ -78,7 +83,30 @@ class IntronAnnotation(object):
             return seq.reverse_complement()
         else:
             return seq
+    def get_donor_site(self):
+        return(self.seq[:2])
 
+    def get_acceptor_site(self):
+        return(self.seq[-2:])
+
+    def get_five_first_bp(self):
+        return(self.seq[:5])
+
+    def get_three_last_bp(self):
+        return(self.seq[-3:])
+
+    def consensus_donor_test(self):
+        sequence = str(self.five_first_bp)
+        if re.search('GT[AG][AG]G',sequence):
+            return('Yes')
+        else:
+            return('No')
+    def consensus_acceptor_test(self):
+        sequence = str(self.three_last_bp)
+        if re.search('[CT]AG',sequence):
+            return('Yes')
+        else:
+            return('No')
 
 class TranscriptInfo(object):
     "Classe qui contiendra les annotations de chaque transcrits"
@@ -159,7 +187,7 @@ def get_dictionnary_of_transcript(intron_by_transcript):
 
 def print_data(file_name,transcript_complete, len_GC = 20,len_seq = 20):
     file_out = open(file_name,"w")
-    header = "Intron id\tTranscript id\tGene id\tCoordinates\tSeq left\tSeq right\tIntron length\tIntron position\tTotal intron\tGC rate\n"
+    header = "chromosome\tstart\tend\tIntron_id\tTranscript_id\tGene_id\tSeq_left\tSeq_right\tIntron_length\tIntron_position\tTotal_intron\tGC_rate\tDonor_site\tFive_first_bp\tGT(A,G)(A,G)G\tAcceptor_site\tThree_last_bp\t(C,T)AG\n"
     file_out.write(header)
     for trans_id, trans_object in transcript_complete.items():
         intron_list = trans_object.introns
@@ -177,7 +205,7 @@ def print_data(file_name,transcript_complete, len_GC = 20,len_seq = 20):
             seq_right = intron.seq_interest_construction(intron.seq_right)
             # On calcule le taux de GC :
             intron_GC = intron.GCrate(len_seq,len_GC)
-            line = intron.chr+"\t"+intron.start+"\t"+intron.end+"\t"+intron.id+"\t"+trans_id+"\t"+intron.gene_id+"\t"+str(seq_left)+"\t"+str(seq_right)+"\t"+str(intron.len_seq)+"\t"+str(position)+"\t"+str(numbers_of_introns)+"\t"+str(intron_GC)+"\n"
+            line = intron.chr+"\t"+intron.start+"\t"+intron.end+"\t"+intron.id+"\t"+trans_id+"\t"+intron.gene_id+"\t"+str(seq_left)+"\t"+str(seq_right)+"\t"+str(intron.len_seq)+"\t"+str(position)+"\t"+str(numbers_of_introns)+"\t"+str(intron_GC)+"\t"+str(intron.donor_site)+"\t"+str(intron.five_first_bp)+"\t"+str(intron.consensus_donor_test())+"\t"+str(intron.acceptor_site)+"\t"+str(intron.three_last_bp)+"\t"+str(intron.consensus_acceptor_test())+"\n"
             file_out.write(line)
     file_out.close()
 
