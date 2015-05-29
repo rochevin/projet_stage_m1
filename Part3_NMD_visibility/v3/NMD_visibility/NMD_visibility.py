@@ -349,6 +349,41 @@ def CDS_annotation(transcript_complete):
 # -Distance en bp entre le stop du CDS et la position de l'intron en cas de rétention
 # -Distance en bp du dernier intron en cas de rétention
 # -Distance en bp du prochain stop en cas de rétention
+def coucou(transcript_complete,file_name_for_intron):
+	file_out_intron=open(file_name_for_intron,"w")
+	for trans_id,trans_object in transcript_complete.items():
+		#### ANNOTATIONS SUR LE TRANSCRIT
+		# Identifiant du transcrit :
+		transcript_id = trans_id
+		# Identifiant du gène du transcrit :
+		gene_id = trans_object.gene_id
+		# Séquence du transcrit
+		seq_for_transcript = trans_object.seq
+		# On récupère les coordonnées transcrit du codon start et stop canonique
+		cds_start = trans_object.cds_start
+		cds_stop = trans_object.cds_stop
+		# On récupère tous les introns du transcrit, ainsi que leur position sur le transcrit
+		introns_for_transcript = trans_object.intron_pos
+		#### ANNOTATIONS SUR LES INTRONS
+		# Pour chaque intron du transcrit :
+		for intron in introns_for_transcript:
+			# Compteur total :
+			# Identifiant de l'intron :
+			intron_id = intron[2].id
+			# On récupère le rang de l'intron dans le transcrit
+			intron_rank = introns_for_transcript.index(intron)+1
+			# On récupère sa position dans le transcrit
+			intron_start = intron[0]
+			# On récupère sa séquence :
+			intron_object = intron[2]
+			intron_seq = intron_object.seq
+			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_seq,intron_start=intron_start,start=cds_start)
+			Bed_format = intron_object.chr+"\t"+intron_object.start+"\t"+intron_object.end+"\t"+intron_object.id
+			line_out_intron = Bed_format+"\t"+str(dist_next_stop)+"\n"
+			file_out_intron.write(line_out_intron)
+
+	file_out_intron.close()
+
 def PTC_annotation(transcript_complete):
 	PTC_dic = {}
 	# On initialise les compteurs à 0
@@ -406,7 +441,7 @@ def PTC_annotation(transcript_complete):
 			dist_intron_last_intron = dist_last_intron(intron,introns_for_transcript)
 
 			# Calcul de la distance du stop le plus proche :
-			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start)
+			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start,start=cds_start)
 
 			# On enregistre toutes nos annotations dans un objet NMD, qu'on enregistre dans un dictionnaire
 			PTC_info = PTCInfo(intron_object.id,intron_object.trans_id,intron_object.gene_id,intron_object.coords,intron_object.seq,CDS_status,dist_intron_last_intron,dist_next_stop,dist_intron_CDS_stop,PTC_status,intron_rank,intron_phase,intron_start)
@@ -502,11 +537,12 @@ def dist_last_intron(one_intron,intron_list):
 
 
 # Fonction qui va calculer le stop le plus proche de l'intron, si il n'y en a pas la fonction retourne -1
-def next_stop(seq,intron_seq,intron_start):
-	seq_intron_and_next_transcript = intron_seq+seq[intron_start:]
+def next_stop(seq,intron_seq,intron_start,start):
+	seq_intron_and_next_transcript = seq[start:intron_start]+intron_seq+seq[intron_start:]
 	stop_position_list = stop_position_in_seq(seq_intron_and_next_transcript)
 	if stop_position_list != None:
-		dist_between_stop_and_intron_start = min(stop_position_list)
+		correct_stop_position_list = [position for position in stop_position_list if position>=intron_start-2]
+		dist_between_stop_and_intron_start = min(correct_stop_position_list)-intron_start if len(correct_stop_position_list)>0 else -1
 		return dist_between_stop_and_intron_start
 	else:
 		return -1
@@ -604,7 +640,7 @@ def write_file_for_intron(PTC_dic,file_name_for_intron):
 		# Écriture des lignes BED obligatoires :
 		Bed_format = chromosome+"\t"+intron_start+"\t"+intron_end
 		# On enregistre les annotations pour les transcrits et les introns
-		annotations_intron=value.format_print()
+		annotations_intron=next_stop(value.)
 		line_out_intron = Bed_format+"\t"+annotations_intron
 		file_out_intron.write(line_out_intron)
 
@@ -689,14 +725,14 @@ PTC_dic = PTC_annotation(transcript_complete)
 # On annote également les transcrits
 CDS_dic = CDS_annotation(transcript_complete)
 # On lance la fonction qui va permettre de calculer la densité des fenêtres UTR
-five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR = intron_density_in_UTR(transcript_complete)
+# five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR = intron_density_in_UTR(transcript_complete)
 # On lance les fonctions d'écritures :
 # -Pour les introns :
 write_file_for_intron(PTC_dic,output_file_intron)
 # -Pour les transcrits :
 write_file_for_transcript(CDS_dic,output_file_transcript)
 # Pour les fenêtres des UTRs
-write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,output_file_windows)
+# write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,output_file_windows)
 
 # RAJOUT CDS
 
