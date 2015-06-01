@@ -441,7 +441,10 @@ def PTC_annotation(transcript_complete):
 			dist_intron_last_intron = dist_last_intron(intron,introns_for_transcript)
 
 			# Calcul de la distance du stop le plus proche :
-			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start,start=cds_start)
+			if CDS_status != "5'UTR" or CDS_status != "3'UTR":
+				dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start,start=cds_start)
+			else:
+				dist_next_stop = "NA"
 
 			# On enregistre toutes nos annotations dans un objet NMD, qu'on enregistre dans un dictionnaire
 			PTC_info = PTCInfo(intron_object.id,intron_object.trans_id,intron_object.gene_id,intron_object.coords,intron_object.seq,CDS_status,dist_intron_last_intron,dist_next_stop,dist_intron_CDS_stop,PTC_status,intron_rank,intron_phase,intron_start)
@@ -525,13 +528,13 @@ def dist_CDS_stop(status,stop,intron_pos,len_intron):
 def dist_last_intron(one_intron,intron_list):
 	if one_intron[2].strand == "-":
 		if one_intron == intron_list[0]:
-			return -1
+			return 0
 		last_intron = intron_list[0]
 		return int(last_intron[0])-int(one_intron[0])+len(one_intron[2].seq)-1
 
 	else:
 		if one_intron == intron_list[-1]:
-			return -1
+			return 0
 		last_intron = intron_list[-1]
 		return int(last_intron[0])-int(one_intron[0])+len(one_intron[2].seq)-1
 
@@ -542,10 +545,10 @@ def next_stop(seq,intron_seq,intron_start,start):
 	stop_position_list = stop_position_in_seq(seq_intron_and_next_transcript)
 	if stop_position_list != None:
 		correct_stop_position_list = [position for position in stop_position_list if position>=intron_start-2]
-		dist_between_stop_and_intron_start = min(correct_stop_position_list)-intron_start if len(correct_stop_position_list)>0 else -1
+		dist_between_stop_and_intron_start = min(correct_stop_position_list)-intron_start if len(correct_stop_position_list)>0 else "NA"
 		return dist_between_stop_and_intron_start
 	else:
-		return -1
+		return "NA"
 
 
 ##########################################################
@@ -640,7 +643,7 @@ def write_file_for_intron(PTC_dic,file_name_for_intron):
 		# Écriture des lignes BED obligatoires :
 		Bed_format = chromosome+"\t"+intron_start+"\t"+intron_end
 		# On enregistre les annotations pour les transcrits et les introns
-		annotations_intron=next_stop(value.)
+		annotations_intron=value.format_print()
 		line_out_intron = Bed_format+"\t"+annotations_intron
 		file_out_intron.write(line_out_intron)
 
@@ -728,9 +731,9 @@ CDS_dic = CDS_annotation(transcript_complete)
 # five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR = intron_density_in_UTR(transcript_complete)
 # On lance les fonctions d'écritures :
 # -Pour les introns :
-write_file_for_intron(PTC_dic,output_file_intron)
+# write_file_for_intron(PTC_dic,output_file_intron)
 # -Pour les transcrits :
-write_file_for_transcript(CDS_dic,output_file_transcript)
+# write_file_for_transcript(CDS_dic,output_file_transcript)
 # Pour les fenêtres des UTRs
 # write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,output_file_windows)
 
