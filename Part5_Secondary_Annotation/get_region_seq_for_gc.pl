@@ -33,8 +33,8 @@ my $r = "Bio::EnsEMBL::Registry";
 # On se connecte à la base de donnée locale ensembl 75
 $r->load_registry_from_db(-host => "localhost", -user => "root", -pass => "root", -port => "8889", -verbose => "0");
 # On utilise gene_adaptor pour récupérer les informations sur nos gènes
-my $gene_adaptor=$r->get_adaptor("Human" ,"core", "Gene");
-my $slice_adaptor=$r->get_adaptor("Human" ,"core", "Slice");
+my $gene_adaptor=$r->get_adaptor("Mouse" ,"core", "Gene");
+my $slice_adaptor=$r->get_adaptor("Mouse" ,"core", "Slice");
 
 foreach my$id (keys %gene_list) {
     my $gene = $gene_adaptor->fetch_by_stable_id($id);

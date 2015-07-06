@@ -39,9 +39,9 @@ def get_braunch_intron_coord(file_name):
     name = file_in.readline()
     for line in file_in:
         content=line.split("\t") #On split le contenu dans une liste
-        regex = re.compile('^(chr[\w]+[-\+])[0-9]+:([0-9]+)_([0-9]+):[0-9]+')
+        regex = re.compile('^(chr[\w]+[-\+])[0-9]+:([0-9]+)_(.+):[0-9]+')
         result = regex.findall(content[1])
-        new_coord = result[0][0]+str(int(result[0][1])+1)+":"+str(int(result[0][2])-1)
+        new_coord = result[0][0]+str(int(result[0][1])+1)+":"+str(int(float(result[0][2])-1))
         if new_coord in Braunch_coord:
             Braunch_coord[new_coord].append(content[0])
         else:

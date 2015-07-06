@@ -147,7 +147,7 @@ class IntronInfo(object):
 # Classes qui vont contenir nos annotations, afin qu'elles soient écrites dans des fichiers
 class PTCInfo(IntronInfo):
 	"Classe qui contiendra les annotations de chaque intron pour la NMD visibilité"
-	def __init__(self,intron_id,trans_id,gene_id,coords,seq,CDS_status,dist_last_intron,dist_next_stop,dist_CDS_stop,PTC_status,intron_position,intron_phase,intron_start):
+	def __init__(self,intron_id,trans_id,gene_id,coords,seq,CDS_status,dist_last_intron,dist_next_stop,dist_CDS_stop,PTC_status,intron_position,intron_phase,intron_start,ptc_in_intron):
 		IntronInfo.__init__(self,intron_id,trans_id,gene_id,coords,seq)
 		self.CDS_status = CDS_status
 		self.dist_last_intron = dist_last_intron
@@ -157,9 +157,10 @@ class PTCInfo(IntronInfo):
 		self.position = intron_position
 		self.phase = intron_phase
 		self.trans_start = intron_start
+		self.ptc_in_intron = ptc_in_intron
 
 	def format_print(self):
-		return self.id+"\t"+self.trans_id.split('(')[0]+"\t"+self.gene_id+"\t"+self.CDS_status+"\t"+str(self.dist_last_intron)+"\t"+str(self.dist_next_stop)+"\t"+str(self.dist_CDS_stop)+"\t"+self.PTC_status+"\t"+str(self.position)+"\t"+str(self.phase)+"\n"
+		return self.id+"\t"+self.trans_id.split('(')[0]+"\t"+self.gene_id+"\t"+self.CDS_status+"\t"+str(self.dist_last_intron)+"\t"+str(self.dist_next_stop)+"\t"+str(self.ptc_in_intron)+"\t"+str(self.dist_CDS_stop)+"\t"+self.PTC_status+"\t"+str(self.position)+"\t"+str(self.phase)+"\n"
 
 
 class TranscriptAnnotate(object):
@@ -441,13 +442,14 @@ def PTC_annotation(transcript_complete):
 			dist_intron_last_intron = dist_last_intron(intron,introns_for_transcript)
 
 			# Calcul de la distance du stop le plus proche :
-			if CDS_status != "5'UTR" or CDS_status != "3'UTR":
-				dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start,start=cds_start)
+			if CDS_status != "5'UTR" and CDS_status != "3'UTR":
+				dist_next_stop,ptc_in_intron = next_stop(seq=seq_for_transcript,intron_seq=intron_object.seq,intron_start=intron_start,start=cds_start)
 			else:
 				dist_next_stop = "NA"
+				ptc_in_intron = "NA"
 
 			# On enregistre toutes nos annotations dans un objet NMD, qu'on enregistre dans un dictionnaire
-			PTC_info = PTCInfo(intron_object.id,intron_object.trans_id,intron_object.gene_id,intron_object.coords,intron_object.seq,CDS_status,dist_intron_last_intron,dist_next_stop,dist_intron_CDS_stop,PTC_status,intron_rank,intron_phase,intron_start)
+			PTC_info = PTCInfo(intron_object.id,intron_object.trans_id,intron_object.gene_id,intron_object.coords,intron_object.seq,CDS_status,dist_intron_last_intron,dist_next_stop,dist_intron_CDS_stop,PTC_status,intron_rank,intron_phase,intron_start,ptc_in_intron)
 			PTC_dic[PTC_info.id] = PTC_info
 	print ("Introns NMD visibles :",intron_NMD,"sur",total_intron)
 	print("No NMD :",no_NMD)
@@ -543,12 +545,18 @@ def dist_last_intron(one_intron,intron_list):
 def next_stop(seq,intron_seq,intron_start,start):
 	seq_intron_and_next_transcript = seq[start:intron_start]+intron_seq+seq[intron_start:]
 	stop_position_list = stop_position_in_seq(seq_intron_and_next_transcript)
+	intron_len = len(intron_seq)
+	intron_position_cds = intron_start-start-2 # -2 car on veut aussi 2 bp en amont
 	if stop_position_list != None:
-		correct_stop_position_list = [position for position in stop_position_list if position>=intron_start-2]
-		dist_between_stop_and_intron_start = min(correct_stop_position_list)-intron_start if len(correct_stop_position_list)>0 else "NA"
-		return dist_between_stop_and_intron_start
+		correct_stop_position_list = [position for position in stop_position_list if position>=intron_position_cds]
+		dist_between_stop_and_intron_start = min(correct_stop_position_list)-intron_position_cds if len(correct_stop_position_list)>0 else "NA"
+		if dist_between_stop_and_intron_start != "NA":
+			ptc_in_intron = "Yes" if dist_between_stop_and_intron_start-intron_len <0 else "No"
+		else :
+			ptc_in_intron = "NA"
+		return dist_between_stop_and_intron_start,ptc_in_intron
 	else:
-		return "NA"
+		return "NA","NA"
 
 
 ##########################################################
@@ -640,8 +648,9 @@ def write_file_for_intron(PTC_dic,file_name_for_intron):
 		chromosome = value.chr
 		intron_start = value.start
 		intron_end = value.end
+		intron_strand = value.strand
 		# Écriture des lignes BED obligatoires :
-		Bed_format = chromosome+"\t"+intron_start+"\t"+intron_end
+		Bed_format = chromosome+"\t"+intron_start+"\t"+intron_end+"\t"+intron_strand
 		# On enregistre les annotations pour les transcrits et les introns
 		annotations_intron=value.format_print()
 		line_out_intron = Bed_format+"\t"+annotations_intron
@@ -724,15 +733,16 @@ intron_by_transcript = get_all_intron_for_transcript(liste_intron,seq_info)
 # Association des introns et des exons dans un transcrit
 transcript_complete = association_between_intron_and_exon(intron_by_transcript,CDS_by_transcript)
 # Pour chaque transcrit, on annote chaque intron du transcrit pour vérifier si il est NMD visible
-PTC_dic = PTC_annotation(transcript_complete)
+# PTC_dic = PTC_annotation(transcript_complete)
 # On annote également les transcrits
-CDS_dic = CDS_annotation(transcript_complete)
+# CDS_dic = CDS_annotation(transcript_complete)
 # On lance la fonction qui va permettre de calculer la densité des fenêtres UTR
 # five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR = intron_density_in_UTR(transcript_complete)
 # On lance les fonctions d'écritures :
 # -Pour les introns :
 # write_file_for_intron(PTC_dic,output_file_intron)
 # -Pour les transcrits :
+# wr
 # write_file_for_transcript(CDS_dic,output_file_transcript)
 # Pour les fenêtres des UTRs
 # write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,output_file_windows)

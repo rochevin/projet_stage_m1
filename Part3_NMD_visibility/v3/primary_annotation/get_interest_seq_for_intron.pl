@@ -38,8 +38,8 @@ $r->load_registry_from_db(-host => "localhost", -user => "root", -pass => "root"
 
 
 
-my $gene_adaptor=$r->get_adaptor("Human" ,"core", "Gene");
-my $slice_adaptor=$r->get_adaptor("Human" ,"core", "Slice");
+my $gene_adaptor=$r->get_adaptor("Mouse" ,"core", "Gene");
+my $slice_adaptor=$r->get_adaptor("Mouse" ,"core", "Slice");
 foreach my$id (keys %gene_list) {
 	my $gene = $gene_adaptor->fetch_by_stable_id($id);
 

@@ -39,11 +39,11 @@ def get_PIR_by_braunch_id(file_name):
     Pir_annotation = {}
     file_in = open(file_name,"r")
     head = file_in.readline()
-    tissues = [elmt.replace('\n','') for elmt in head.split('\t')[1:]]
+    tissues = [elmt.replace('\n','') for elmt in head.split('\t')[2:]]
     for line in file_in:
         content = line.split('\t')
         intron_id = content[0]
-        PIR = content[1:]
+        PIR = content[2:]
         PIR_by_tissue = {tissues[i]:PIR[i].replace('\n','') for i in range(0,len(PIR),1)}
         Pir_annotation[intron_id]=PIR_by_tissue
     # On créer un id NA qui ne contient que des NA

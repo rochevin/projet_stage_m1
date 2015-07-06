@@ -13,6 +13,11 @@ class IntronInfo(object):
 		self.start = start
 		self.end = end
 		self.GC_rate = GC_rate
+	def get_donor(self):
+		if self.donor !="NA":
+			return(self.donor[20:25])
+		else:
+			return("NA")
 	def get_acceptor(self):
 		if self.acceptor !="NA":
 			return(self.acceptor[7:21])
@@ -27,16 +32,16 @@ def get_seq_for_each_intron(file_name):
 	name = file_in.readline() #On enregistre la première ligne étant l'en tête
 
 	for line in file_in: #On parcours chaque ligne du fichier à partir de la deuxième
-		content=line.split(" ")
-		intron_id = content[4].replace('"','')
-		intron_chr = content[1].replace('"','')
-		intron_start = content[2]
-		intron_end = content[3]
-		intron_gene_id = content[6].replace('"','')
-		intron_trans_id = content[5].replace('"','')
-		donor_seq = Seq(content[26].replace('"',''))
-		acceptor_seq = Seq(content[20].replace('"',''))
-		intron_GC_rate = content[24]
+		content=line.split("\t")
+		intron_id = content[3]
+		intron_chr = content[0]
+		intron_start = content[1]
+		intron_end = content[2]
+		intron_gene_id = content[5]
+		intron_trans_id = content[4]
+		donor_seq = Seq(content[6])
+		acceptor_seq = Seq(content[7])
+		intron_GC_rate = content[11]
 		introns[intron_id]=IntronInfo(intron_id,intron_trans_id,intron_gene_id,donor_seq,acceptor_seq,intron_chr,intron_start,intron_end,intron_GC_rate)
 
 	file_in.close()
@@ -72,14 +77,14 @@ def acceptor_score(matrix,seq):
 
 def type_of_data(object_dictionnary,type_data="All"):
 	if type_data == "All":
-		donor_seq = [value.donor for value in object_dictionnary.values() if value.GC_rate!="NA"]
-		acceptor_seq = [value.get_acceptor() for value in object_dictionnary.values() if value.GC_rate!="NA"]
+		donor_seq = [value.get_donor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and value.get_donor().count('N')==0)]
+		acceptor_seq = [value.get_acceptor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and value.get_acceptor().count('N')==0)]
 	if type_data == "low_gc":
-		donor_seq = [value.donor for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)<=35)]
-		acceptor_seq = [value.get_acceptor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)<=35)]
+		donor_seq = [value.get_donor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)<=35 and value.get_donor().count('N')==0)]
+		acceptor_seq = [value.get_acceptor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)<=35 and value.get_acceptor().count('N')==0)]
 	if type_data == "high_gc":
-		donor_seq = [value.donor for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)>=60)]
-		acceptor_seq = [value.get_acceptor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)>=60)]
+		donor_seq = [value.get_donor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)>=60 and value.get_donor().count('N')==0)]
+		acceptor_seq = [value.get_acceptor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)>=60 and value.get_acceptor().count('N')==0)]
 
 	return(donor_seq,acceptor_seq)
 
@@ -103,13 +108,13 @@ def score_for_each_intron(file_name,introns):
 	file_out.write(head)
 	for key,value in introns.items():
 		intron=value
-		if intron.donor != "NA":
-			all_score_for_donor_seq = donor_score(all_donor_matrix,intron.donor)
-			low_gc_score_for_donor_seq = donor_score(low_gc_donor_matrix,intron.donor)
-			high_gc_score_for_donor_seq = donor_score(high_gc_donor_matrix,intron.donor)
+		if (intron.get_donor() != "NA" and intron.get_donor().count('N')==0):
+			all_score_for_donor_seq = donor_score(all_donor_matrix,intron.get_donor())
+			low_gc_score_for_donor_seq = donor_score(low_gc_donor_matrix,intron.get_donor())
+			high_gc_score_for_donor_seq = donor_score(high_gc_donor_matrix,intron.get_donor())
 		else:
 			score_for_donor_seq = "NA"
-		if intron.get_acceptor() != "NA":
+		if (intron.get_acceptor() != "NA" and intron.get_acceptor().count('N')==0):
 			all_score_for_acceptor_seq = acceptor_score(all_acceptor_matrix,intron.get_acceptor())
 			low_gc_score_for_acceptor_seq = acceptor_score(low_gc_acceptor_matrix,intron.get_acceptor())
 			high_gc_score_for_acceptor_seq = acceptor_score(high_gc_acceptor_matrix,intron.get_acceptor())
