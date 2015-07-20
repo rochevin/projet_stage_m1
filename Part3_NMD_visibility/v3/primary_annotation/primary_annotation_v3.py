@@ -187,7 +187,7 @@ def get_dictionnary_of_transcript(intron_by_transcript):
 
 def print_data(file_name,transcript_complete, len_GC = 20,len_seq = 20):
     file_out = open(file_name,"w")
-    header = "chromosome\tstart\tend\tIntron_id\tTranscript_id\tGene_id\tSeq_left\tSeq_right\tIntron_length\tIntron_position\tTotal_intron\tGC_rate\tDonor_site\tFive_first_bp\tGT(A,G)(A,G)G\tAcceptor_site\tThree_last_bp\t(C,T)AG\n"
+    header = "chromosome\tstart\tend\tIntron_id\tstrand\tTranscript_id\tGene_id\tDonor_seq\tAcceptor_seq\tIntron_length\tIntron_position\tTotal_intron\tGC_rate\tDonor_site\tFive_first_bp\tGT(A,G)(A,G)G\tAcceptor_site\tThree_last_bp\t(C,T)AG\n"
     file_out.write(header)
     for trans_id, trans_object in transcript_complete.items():
         intron_list = trans_object.introns
@@ -205,7 +205,7 @@ def print_data(file_name,transcript_complete, len_GC = 20,len_seq = 20):
             seq_right = intron.seq_interest_construction(intron.seq_right)
             # On calcule le taux de GC :
             intron_GC = intron.GCrate(len_seq,len_GC)
-            line = intron.chr+"\t"+intron.start+"\t"+intron.end+"\t"+intron.id+"\t"+trans_id+"\t"+intron.gene_id+"\t"+str(seq_left)+"\t"+str(seq_right)+"\t"+str(intron.len_seq)+"\t"+str(position)+"\t"+str(numbers_of_introns)+"\t"+str(intron_GC)+"\t"+str(intron.donor_site)+"\t"+str(intron.five_first_bp)+"\t"+str(intron.consensus_donor_test())+"\t"+str(intron.acceptor_site)+"\t"+str(intron.three_last_bp)+"\t"+str(intron.consensus_acceptor_test())+"\n"
+            line = intron.chr+"\t"+intron.start+"\t"+intron.end+"\t"+intron.id+"\t"+trans_object.strand+"\t"+trans_id+"\t"+intron.gene_id+"\t"+str(seq_left)+"\t"+str(seq_right)+"\t"+str(intron.len_seq)+"\t"+str(position)+"\t"+str(numbers_of_introns)+"\t"+str(intron_GC)+"\t"+str(intron.donor_site)+"\t"+str(intron.five_first_bp)+"\t"+str(intron.consensus_donor_test())+"\t"+str(intron.acceptor_site)+"\t"+str(intron.three_last_bp)+"\t"+str(intron.consensus_acceptor_test())+"\n"
             file_out.write(line)
     file_out.close()
 

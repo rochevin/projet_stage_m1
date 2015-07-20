@@ -15,7 +15,7 @@ class IntronInfo(object):
 		self.GC_rate = GC_rate
 	def get_donor(self):
 		if self.donor !="NA":
-			return(self.donor[20:25])
+			return(self.donor[18:26])
 		else:
 			return("NA")
 	def get_acceptor(self):
@@ -58,8 +58,8 @@ def get_matrix_frequency(seqs):
 	return(PPM)
 
 def donor_score(matrix,seq):
-	maxt=sum(max(matrix['A'][i],matrix['C'][i],matrix['G'][i],matrix['T'][i]) for i in range(5))
-	mint=sum(min(matrix['A'][i],matrix['C'][i],matrix['G'][i],matrix['T'][i]) for i in range(5))
+	maxt=sum(max(matrix['A'][i],matrix['C'][i],matrix['G'][i],matrix['T'][i]) for i in range(8))
+	mint=sum(min(matrix['A'][i],matrix['C'][i],matrix['G'][i],matrix['T'][i]) for i in range(8))
 	t=sum(matrix[seq[i]][i] for i in range(len(seq)))
 	score=100*((t-mint)/(maxt-mint))
 	return(round(score,2))
