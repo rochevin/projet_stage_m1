@@ -1,9 +1,10 @@
 from Bio import SeqIO # On importe seqIO pour parser le fichier fasta
 from Bio.Seq import Seq
+from Bio import motifs
 
 class IntronInfo(object):
 	"Classe qui contiendra les annotations de chaque intron"
-	def __init__(self,intron_id,trans_id,gene_id,chromosome,strand,start,end,GC_rate,start_site,end_site,donor_site,acceptor_site):
+	def __init__(self,intron_id,trans_id,gene_id,chromosome,strand,start,end,GC_rate,start_site,end_site):
 		self.id = intron_id
 		self.chr = chromosome
 		self.strand = strand
@@ -11,24 +12,28 @@ class IntronInfo(object):
 		self.end = end
 		self.gene_id = gene_id
 		self.trans_id = trans_id
-		self.donor_site = donor_site
-		self.acceptor_site = acceptor_site
+
 		self.GC_rate = GC_rate
 		#Les sequences start/end sont déjà inversée dans le fichier fasta, donc on part toujours de start, par contre, pour les positions, si brin -, le début de l'intron correspond à la position end dans le génome
 		self.start_site = start_site
 		self.end_site = end_site
 
+		###Donne la bonne séquence, si brin "-", ne change rien si brin +
+		self.donor_site = start_site.reverse_complement() if self.strand=="-" else start_site
+		self.acceptor_site = end_site.reverse_complement() if self.strand=="-" else end_site
+
+
 		self.start_interval = (int(self.start)-20,int(self.start)+19) if self.strand == "+" else (int(self.end)-19,int(self.end)+20)
 		self.end_interval = (int(self.end)-19,int(self.end)+20) if self.strand == "+" else (int(self.start)-20,int(self.start)+19)
 
-		def get_donor(self):
-			if self.donor !="NA":
-				return(self.donor[18:26])
+	def get_donor(self):
+			if self.donor_site !="NA":
+				return(self.donor_site[18:26])
 			else:
 				return("NA")
-		def get_acceptor(self):
-			if self.acceptor !="NA":
-				return(self.acceptor[7:21])
+	def get_acceptor(self):
+			if self.acceptor_site !="NA":
+				return(self.acceptor_site[7:21])
 			else:
 				return("NA")
 
@@ -69,7 +74,7 @@ def get_pos_and_coords_by_intron(file_name,dico_info):
 		seq_of_interest = dico_info[content[3]]
 		start_site = seq_of_interest[0][0]
 		end_site = seq_of_interest[1][0]
-		Intron_Object = IntronInfo(intron_id=content[3], trans_id=content[5], gene_id=content[6], chromosome=content[0], strand=content[4], start=content[1], end=content[2], donor_site=content[7], acceptor_site=content[8],GC_rate=content[12],start_site=start_site,end_site=end_site)
+		Intron_Object = IntronInfo(intron_id=content[3], trans_id=content[5], gene_id=content[6], chromosome=content[0], strand=content[4], start=content[1], end=content[2],GC_rate=content[12],start_site=start_site,end_site=end_site)
 		intron_list.append(Intron_Object)
 
 
@@ -93,21 +98,8 @@ def get_polymorphism(file_name):
 ###Détermination de la séquence alternative avec le polymorphisme
 def splice_site_preparation(alt,seq,alt_pos,strand):
 	seq_alt = seq[:alt_pos]+alt+seq[alt_pos+1:]
-	return seq_alt if strand =="+" else str(Seq(seq_alt).reverse_complement())
+	return seq_alt if strand =="+" else str(seq_alt.reverse_complement())
 
-###Construction des séquences pour la matrice
-def type_of_data(object_dictionnary,type_data="All"):
-	if type_data == "All":
-		donor_seq = [value.get_donor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and value.get_donor().count('N')==0)]
-		acceptor_seq = [value.get_acceptor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and value.get_acceptor().count('N')==0)]
-	if type_data == "low_gc":
-		donor_seq = [value.get_donor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)<=35 and value.get_donor().count('N')==0)]
-		acceptor_seq = [value.get_acceptor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)<=35 and value.get_acceptor().count('N')==0)]
-	if type_data == "high_gc":
-		donor_seq = [value.get_donor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)>=60 and value.get_donor().count('N')==0)]
-		acceptor_seq = [value.get_acceptor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and float(value.GC_rate)>=60 and value.get_acceptor().count('N')==0)]
-
-	return(donor_seq,acceptor_seq)
 
 ###Construction de la matrice
 def get_matrix_frequency(seqs):
@@ -147,19 +139,25 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 	nuc_type = {"A":"W","T":"W","C":"S","G":"S"} #On construit un dico qui contient l'information sur le type de nucléotide, on pourra alors déterminer le type de mutation (ex : si A vers T => WW, si A vers G => WS)
 
 	###Détermination de la matrice totale
-	all_donors,all_acceptors = type_of_data(introns,type_data="All")
-	all_donor_matrix = get_matrix_frequency(all_donors)
-	all_acceptor_matrix = get_matrix_frequency(all_acceptors)
+	donor_seq = [value.get_donor() for value in intron_list if value.get_donor().count('N')==0]
+	acceptor_seq = [value.get_acceptor() for value in intron_list if value.get_acceptor().count('N')==0]
+	all_donor_matrix = get_matrix_frequency(donor_seq)
+	all_acceptor_matrix = get_matrix_frequency(acceptor_seq)
 
 
+	header = "Chromosome"+"\t"+"Position"+"\t"+"Splice_site_type"+"\t"+"Position_splice_site"+"\t"+"Intron_id"+"\t"+"REF"+"\t"+"ALT"+"\t"+"ANC"+"\t"+"DER"+"\t"+"Frq_ALT"+"\t"+"DAF"+"\t"+"Type_mutation"+"\t"+"ANC_Qual"+"\t"+"Delta_score"+"\n"
+	file_out.write(header)
+	###Parcours des introns pour annotation
 	for intron in intron_list:
 		intron_id = intron.id
 		splice_donor_interval = intron.start_interval
 		splice_acceptor_interval = intron.end_interval
 
 		###Calcul du score des sites de l'intron sans polymorphisme
-		score_for_donor_seq = donor_score(all_donor_matrix,intron.get_donor())
-		score_for_acceptor_seq = acceptor_score(all_acceptor_matrix,intron.get_acceptor())
+		score_for_donor_seq = donor_score(all_donor_matrix,intron.donor_site) if intron.donor_site!="NA" else "NA"
+		score_for_acceptor_seq = acceptor_score(all_acceptor_matrix,intron.acceptor_site) if intron.acceptor_site!="NA" else "NA"
+
+
 
 
 		position_in_splice_site = 0 #Compteur pour recupérer la sequence de référence quand pas annoté d'un SNP
@@ -167,8 +165,11 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 			if (intron_id,str(i)) in poly_info:
 				polymorphism = poly_info[intron_id,str(i)]
 				seq_alt = splice_site_preparation(alt=polymorphism.ALT,seq=intron.start_site,alt_pos=position_in_splice_site,strand=intron.strand)
-				alt_score_for_donor_seq = donor_score(all_donor_matrix,seq_alt)
-				delta_score = score_for_donor_seq-alt_score_for_donor_seq
+				if score_for_donor_seq!="NA":
+					alt_score_for_donor_seq = donor_score(all_donor_matrix,seq_alt)
+					delta_score = round(float(score_for_donor_seq)-float(alt_score_for_donor_seq),2)
+				else:
+					delta_score = "NA"
 				if polymorphism.ANC not in (".","-","N"):
 					ANC = polymorphism.ANC.upper()
 					DER = polymorphism.ALT if ANC == polymorphism.REF else polymorphism.REF
@@ -181,7 +182,7 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 					DAF = "NA"
 					type_mut = "NA"
 					ANC_Qual = "0"
-				line = intron.chr+"\t"+str(i)+"\t"+"Donor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+polymorphism.REF+"\t"+polymorphism.ALT+"\t"+ANC+"\t"+DER+"\t"+str(polymorphism.Frq_ALT)+"\t"+str(DAF)+"\t"+type_mut+"\t"+ANC_Qual+"\t"+delta_score+"\n"
+				line = intron.chr+"\t"+str(i)+"\t"+"Donor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+polymorphism.REF+"\t"+polymorphism.ALT+"\t"+ANC+"\t"+DER+"\t"+str(polymorphism.Frq_ALT)+"\t"+str(DAF)+"\t"+type_mut+"\t"+ANC_Qual+"\t"+str(delta_score)+"\n"
 			else:
 				line = intron.chr+"\t"+str(i)+"\t"+"Donor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+intron.start_site[position_in_splice_site]+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\n"
 			file_out.write(line)
@@ -191,8 +192,9 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 			if (intron_id,str(i)) in poly_info:
 				polymorphism = poly_info[intron_id,str(i)]
 				seq_alt = splice_site_preparation(alt=polymorphism.ALT,seq=intron.end_site,alt_pos=position_in_splice_site,strand=intron.strand)
-				alt_score_for_acceptor_seq = acceptor_score(all_donor_matrix,seq_alt)
-				delta_score = score_for_acceptor_seq-alt_score_for_acceptor_seq
+				if score_for_acceptor_seq!="NA":
+					alt_score_for_acceptor_seq = acceptor_score(all_acceptor_matrix,seq_alt)
+					delta_score = round(float(score_for_acceptor_seq)-float(alt_score_for_acceptor_seq),2)
 				if polymorphism.ANC not in (".","-","N"):
 					ANC = polymorphism.ANC.upper()
 					DER = polymorphism.ALT if ANC == polymorphism.REF else polymorphism.REF
@@ -205,9 +207,9 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 					DAF = "NA"
 					type_mut = "NA"
 					ANC_Qual = "0"
-				line = intron.chr+"\t"+str(i)+"\t"+"Acceptor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+polymorphism.REF+"\t"+polymorphism.ALT+"\t"+ANC+"\t"+DER+"\t"+str(polymorphism.Frq_ALT)+"\t"+str(DAF)+"\t"+type_mut+"\t"+ANC_Qual+"\n"
+				line = intron.chr+"\t"+str(i)+"\t"+"Acceptor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+polymorphism.REF+"\t"+polymorphism.ALT+"\t"+ANC+"\t"+DER+"\t"+str(polymorphism.Frq_ALT)+"\t"+str(DAF)+"\t"+type_mut+"\t"+ANC_Qual+"\t"+str(delta_score)+"\n"
 			else:
-				line = intron.chr+"\t"+str(i)+"\t"+"Acceptor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+intron.start_site[position_in_splice_site]+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\n"
+				line = intron.chr+"\t"+str(i)+"\t"+"Acceptor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+intron.start_site[position_in_splice_site]+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\n"
 			file_out.write(line)
 			position_in_splice_site +=1
 
