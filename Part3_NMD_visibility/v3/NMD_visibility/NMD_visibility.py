@@ -85,7 +85,7 @@ class TranscriptInfo(object):
 		# On définit un tuple contenant tous les codons stop possible
 		stop_codon = ("TGA","TAG","TAA")
 		# On vérifie qu'il commence par un start et fini par un stop :
-		if not (self.CDS_seq.endswith(stop_codon) or self.CDS_seq.startswith("ATG")) :
+		if (self.CDS_seq.startswith("ATG")==False or self.CDS_seq.endswith(stop_codon)==False):
 			return "Partial"
 		# On vérifie qu'il est bien multiple de 3 :
 		if not len(self.CDS_seq)%3 == 0 :
@@ -553,10 +553,10 @@ def next_stop(seq,intron_seq,intron_start,start):
 		if dist_between_stop_and_intron_start != "NA":
 			ptc_in_intron = "Yes" if dist_between_stop_and_intron_start-intron_len <0 else "No"
 		else :
-			ptc_in_intron = "NA"
+			ptc_in_intron = "No"
 		return dist_between_stop_and_intron_start,ptc_in_intron
 	else:
-		return "NA","NA"
+		return "NA","No"
 
 
 ##########################################################
