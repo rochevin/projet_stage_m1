@@ -145,7 +145,7 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 	all_acceptor_matrix = get_matrix_frequency(acceptor_seq)
 
 
-	header = "Chromosome"+"\t"+"Position"+"\t"+"Strand"+"\t"+"Splice_site_type"+"\t"+"Position_splice_site"+"\t"+"Intron_id"+"\t"+"REF"+"\t"+"ALT"+"\t"+"ANC"+"\t"+"DER"+"\t"+"REF_rna"+"\t"+"ALT_rna"+"\t"+"ANC_rna"+"\t"+"DER_rna"+"\t"+"Frq_ALT"+"\t"+"DAF"+"\t"+"Type_mutation"+"\t"+"ANC_Qual"+"\t"+"Delta_score"+"\n"
+	header = "Chromosome"+"\t"+"Position"+"\t"+"Strand"+"\t"+"Splice_site_type"+"\t"+"Position_splice_site"+"\t"+"Intron_id"+"\t"+"REF"+"\t"+"ALT"+"\t"+"ANC"+"\t"+"DER"+"\t"+"REF_rna"+"\t"+"ALT_rna"+"\t"+"ANC_rna"+"\t"+"DER_rna"+"\t"+"Frq_ALT"+"\t"+"DAF"+"\t"+"Type_mutation"+"\t"+"ANC_Qual"+"\t"+"Delta_score(REF->ALT)"+"\tDelta_score(ANC->DER)"+"\n"
 	file_out.write(header)
 	###Parcours des introns pour annotation
 	for intron in intron_list:
@@ -174,7 +174,7 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 				ALT_rna = str(Seq(polymorphism.ALT).complement()) if intron.strand =="-" else polymorphism.ALT
 
 				###Calcul du score alternatif et delta score
-				seq_alt = splice_site_preparation(alt=ALT_rna,seq=intron.start_site,alt_pos=position_in_splice_site,strand=intron.strand)
+				seq_alt = splice_site_preparation(alt=polymorphism.ALT,seq=intron.start_site,alt_pos=position_in_splice_site,strand=intron.strand)
 				if score_for_donor_seq!="NA":
 					alt_score_for_donor_seq = donor_score(all_donor_matrix,seq_alt)
 					delta_score = round(float(score_for_donor_seq)-float(alt_score_for_donor_seq),2)
@@ -190,6 +190,14 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 					DAF = polymorphism.Frq_ALT if ANC == polymorphism.REF else 1-float(polymorphism.Frq_ALT)
 					type_mut = nuc_type[ANC]+nuc_type[DER]
 					ANC_Qual = "2" if ANC.isupper() else "1"
+					###Calcul du delta score ANC -> DER
+					##Détermination des séquence avec allèle ancestral et dérivé
+					seq_anc = splice_site_preparation(alt=ANC,seq=intron.start_site,alt_pos=position_in_splice_site,strand=intron.strand)
+					seq_der = splice_site_preparation(alt=DER,seq=intron.start_site,alt_pos=position_in_splice_site,strand=intron.strand)
+					##Calcul du score :
+					anc_score_for_donor_seq = donor_score(all_donor_matrix,seq_anc)
+					der_score_for_donor_seq = donor_score(all_donor_matrix,seq_der)
+					anc_delta_score = round(float(anc_score_for_donor_seq)-float(der_score_for_donor_seq),2)
 				##Sinon on annote NA
 				else:
 					ANC = "NA"
@@ -199,10 +207,11 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 					DAF = "NA"
 					type_mut = "NA"
 					ANC_Qual = "0"
-				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Donor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+polymorphism.REF+"\t"+polymorphism.ALT+"\t"+ANC+"\t"+DER+"\t"+REF_rna+"\t"+ALT_rna+"\t"+ANC_rna+"\t"+DER_rna+"\t"+str(polymorphism.Frq_ALT)+"\t"+str(DAF)+"\t"+type_mut+"\t"+ANC_Qual+"\t"+str(delta_score)+"\n"
+					anc_delta_score = "NA"
+				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Donor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+polymorphism.REF+"\t"+polymorphism.ALT+"\t"+ANC+"\t"+DER+"\t"+REF_rna+"\t"+ALT_rna+"\t"+ANC_rna+"\t"+DER_rna+"\t"+str(polymorphism.Frq_ALT)+"\t"+str(DAF)+"\t"+type_mut+"\t"+ANC_Qual+"\t"+str(delta_score)+"\t"+str(anc_delta_score)+"\n"
 			else:
 				REF_rna = str(Seq(intron.start_site[position_in_splice_site]).complement()) if intron.strand =="-" else intron.start_site[position_in_splice_site]
-				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Donor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+intron.start_site[position_in_splice_site]+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+REF_rna+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\n"
+				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Donor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+intron.start_site[position_in_splice_site]+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+REF_rna+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\n"
 			file_out.write(line)
 			position_in_splice_site +=1
 
@@ -215,7 +224,7 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 				ALT_rna = str(Seq(polymorphism.ALT).complement()) if intron.strand =="-" else polymorphism.ALT
 
 				###Calcul du score alternatif et delta score
-				seq_alt = splice_site_preparation(alt=ALT_rna,seq=intron.end_site,alt_pos=position_in_splice_site,strand=intron.strand)
+				seq_alt = splice_site_preparation(alt=polymorphism.ALT,seq=intron.end_site,alt_pos=position_in_splice_site,strand=intron.strand)
 				if score_for_acceptor_seq!="NA":
 					alt_score_for_acceptor_seq = acceptor_score(all_acceptor_matrix,seq_alt)
 					delta_score = round(float(score_for_acceptor_seq)-float(alt_score_for_acceptor_seq),2)
@@ -229,6 +238,14 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 					DAF = polymorphism.Frq_ALT if ANC == polymorphism.REF else 1-float(polymorphism.Frq_ALT)
 					type_mut = nuc_type[ANC]+nuc_type[DER]
 					ANC_Qual = "2" if ANC.isupper() else "1"
+					###Calcul du delta score ANC -> DER
+					##Détermination des séquence avec allèle ancestral et dérivé
+					seq_anc = splice_site_preparation(alt=ANC,seq=intron.end_site,alt_pos=position_in_splice_site,strand=intron.strand)
+					seq_der = splice_site_preparation(alt=DER,seq=intron.end_site,alt_pos=position_in_splice_site,strand=intron.strand)
+					##Calcul du score :
+					anc_score_for_acceptor_seq = acceptor_score(all_acceptor_matrix,seq_anc)
+					der_score_for_acceptor_seq = acceptor_score(all_acceptor_matrix,seq_der)
+					anc_delta_score = round(float(anc_score_for_acceptor_seq)-float(der_score_for_acceptor_seq),2)
 				##Sinon on annote NA
 				else:
 					ANC = "NA"
@@ -238,10 +255,11 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 					DAF = "NA"
 					type_mut = "NA"
 					ANC_Qual = "0"
-				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Acceptor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+polymorphism.REF+"\t"+polymorphism.ALT+"\t"+ANC+"\t"+DER+"\t"+REF_rna+"\t"+ALT_rna+"\t"+ANC_rna+"\t"+DER_rna+"\t"+str(polymorphism.Frq_ALT)+"\t"+str(DAF)+"\t"+type_mut+"\t"+ANC_Qual+"\t"+str(delta_score)+"\n"
+					anc_delta_score = "NA"
+				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Acceptor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+polymorphism.REF+"\t"+polymorphism.ALT+"\t"+ANC+"\t"+DER+"\t"+REF_rna+"\t"+ALT_rna+"\t"+ANC_rna+"\t"+DER_rna+"\t"+str(polymorphism.Frq_ALT)+"\t"+str(DAF)+"\t"+type_mut+"\t"+ANC_Qual+"\t"+str(delta_score)+"\t"+str(anc_delta_score)+"\n"
 			else:
 				REF_rna = str(Seq(intron.end_site[position_in_splice_site]).complement()) if intron.strand =="-" else intron.end_site[position_in_splice_site]
-				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Acceptor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+intron.end_site[position_in_splice_site]+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+REF_rna+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\n"
+				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Acceptor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+intron.end_site[position_in_splice_site]+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+REF_rna+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\n"
 			file_out.write(line)
 			position_in_splice_site +=1
 

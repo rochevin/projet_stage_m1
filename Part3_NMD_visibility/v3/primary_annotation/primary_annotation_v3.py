@@ -128,6 +128,7 @@ def get_seq_fasta(file_name):
     handle.close()
     return(seq_info)
 
+#Fonction qui va récupérer les séquences d'intérêt, en plus des sequences fasta exons/intron, soit ici -20/+20 intron+exons bordant
 def get_seq_of_interest(file_name):
     dico_info = {}
     handle = open(file_name, "rU") #On ouvre le fichier en mode lecture
@@ -142,6 +143,7 @@ def get_seq_of_interest(file_name):
             dico_info[seq_id].append((seq,record.description.split(" ")[1]))
     handle.close()
     return(dico_info)
+
 # Fonction qui va enregistrer chaque intron dans un objet, puis l'ajouter dans un dictionnaire pour chaque transcrit
 def get_all_intron_for_transcript(file_name,seq_info,dico_info,minimal_len_seq= 50):
 
@@ -171,6 +173,7 @@ def get_all_intron_for_transcript(file_name,seq_info,dico_info,minimal_len_seq= 
     file_in.close()
     return(intron_by_transcript)
 
+#On récupère nos introns qu'on regroupe par transcrits
 def get_dictionnary_of_transcript(intron_by_transcript):
     transcript_complete = {}
     for trans_id, list_intron in intron_by_transcript.items():
@@ -185,6 +188,7 @@ def get_dictionnary_of_transcript(intron_by_transcript):
         transcript_complete[real_trans_id]=transcript_object
     return(transcript_complete)
 
+#Fonction d'écriture du fichier
 def print_data(file_name,transcript_complete, len_GC = 20,len_seq = 20):
     file_out = open(file_name,"w")
     header = "chromosome\tstart\tend\tIntron_id\tstrand\tTranscript_id\tGene_id\tDonor_seq\tAcceptor_seq\tIntron_length\tIntron_position\tTotal_intron\tGC_rate\tDonor_site\tFive_first_bp\tGT(A,G)(A,G)G\tAcceptor_site\tThree_last_bp\t(C,T)AG\n"

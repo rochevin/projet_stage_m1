@@ -39,9 +39,9 @@ def get_seq_for_each_intron(file_name):
 		intron_end = content[2]
 		intron_gene_id = content[5]
 		intron_trans_id = content[4]
-		donor_seq = Seq(content[6])
-		acceptor_seq = Seq(content[7])
-		intron_GC_rate = content[11]
+		donor_seq = Seq(content[7])
+		acceptor_seq = Seq(content[8])
+		intron_GC_rate = content[12]
 		introns[intron_id]=IntronInfo(intron_id,intron_trans_id,intron_gene_id,donor_seq,acceptor_seq,intron_chr,intron_start,intron_end,intron_GC_rate)
 
 	file_in.close()
