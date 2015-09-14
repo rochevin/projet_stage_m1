@@ -24,6 +24,7 @@ class IntronInfo(object):
 		else:
 			return("NA")
 
+#Fonction qui récupère pour chaque intron ses informations dont les séquences donneur et accepteur pour le calcul du score
 def get_seq_for_each_intron(file_name):
 	introns = {}
 	donors = []
@@ -42,12 +43,15 @@ def get_seq_for_each_intron(file_name):
 		donor_seq = Seq(content[7])
 		acceptor_seq = Seq(content[8])
 		intron_GC_rate = content[12]
+		#On enregistre sous la forme d'un objet
 		introns[intron_id]=IntronInfo(intron_id,intron_trans_id,intron_gene_id,donor_seq,acceptor_seq,intron_chr,intron_start,intron_end,intron_GC_rate)
 
 	file_in.close()
 
 	return(introns)
 
+
+#Calcule la matrice de fréquence pour chaque site (renvoi un dictionnaire à deux dimensions)
 def get_matrix_frequency(seqs):
 	m = motifs.create(seqs)
 	PFM = m.pwm
@@ -57,6 +61,7 @@ def get_matrix_frequency(seqs):
 		PPM[key]=percentages
 	return(PPM)
 
+#Calcul du score pour le site donneur
 def donor_score(matrix,seq):
 	maxt=sum(max(matrix['A'][i],matrix['C'][i],matrix['G'][i],matrix['T'][i]) for i in range(8))
 	mint=sum(min(matrix['A'][i],matrix['C'][i],matrix['G'][i],matrix['T'][i]) for i in range(8))
@@ -64,6 +69,7 @@ def donor_score(matrix,seq):
 	score=100*((t-mint)/(maxt-mint))
 	return(round(score,2))
 
+#Calcul du score pour le site accepteur
 def acceptor_score(matrix,seq):
 	t1 = sum(sorted([matrix[seq[i]][i] for i in range(10)],reverse=True)[0:8])
 	t2 = sum(matrix[seq[i]][i] for i in range(10,14))
@@ -74,7 +80,7 @@ def acceptor_score(matrix,seq):
 	score = 100*((t1-l1)/(h1-l1)+(t2-l2)/(h2-l2))/2
 	return(round(score,2))
 
-
+#Définition des séquences en fonction du type d'intron (à envoyer à la fonction matrice)
 def type_of_data(object_dictionnary,type_data="All"):
 	if type_data == "All":
 		donor_seq = [value.get_donor() for value in object_dictionnary.values() if (value.GC_rate!="NA" and value.get_donor().count('N')==0)]
@@ -88,6 +94,7 @@ def type_of_data(object_dictionnary,type_data="All"):
 
 	return(donor_seq,acceptor_seq)
 
+#Calcul du score et écriture dans le fichier
 def score_for_each_intron(file_name,introns):
 	file_out=open(file_name,"w")
 

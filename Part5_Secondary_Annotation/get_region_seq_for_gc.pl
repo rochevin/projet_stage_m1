@@ -46,10 +46,10 @@ foreach my$id (keys %gene_list) {
     my $transcript_id = $canonical_transcript->stable_id();
 
     my $seq_region = $canonical_transcript->seq_region_name();
-
+    #On définit les tailles des régions
     my $debut = $canonical_transcript->start()-20000;
     my $fin = $canonical_transcript->end()+20000;
-
+    #Et on récupère les informations sur la région
     my $slice = $slice_adaptor->fetch_by_region( 'chromosome', $seq_region, $debut, $fin );
     if (defined $slice){
         $full_seq = $slice->seq();

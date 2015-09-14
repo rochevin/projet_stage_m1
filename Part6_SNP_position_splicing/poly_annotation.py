@@ -4,7 +4,7 @@ from Bio import motifs
 
 class IntronInfo(object):
 	"Classe qui contiendra les annotations de chaque intron"
-	def __init__(self,intron_id,trans_id,gene_id,chromosome,strand,start,end,GC_rate,start_site,end_site):
+	def __init__(self,intron_id,trans_id,gene_id,chromosome,strand,start,end,GC_rate,start_site,end_site,intron_length):
 		self.id = intron_id
 		self.chr = chromosome
 		self.strand = strand
@@ -12,6 +12,7 @@ class IntronInfo(object):
 		self.end = end
 		self.gene_id = gene_id
 		self.trans_id = trans_id
+		self.intron_length = intron_length
 
 		self.GC_rate = GC_rate
 		#Les sequences start/end sont déjà inversée dans le fichier fasta, donc on part toujours de start, par contre, pour les positions, si brin -, le début de l'intron correspond à la position end dans le génome
@@ -23,8 +24,8 @@ class IntronInfo(object):
 		self.acceptor_site = end_site.reverse_complement() if self.strand=="-" else end_site
 
 
-		self.start_interval = (int(self.start)-20,int(self.start)+19) if self.strand == "+" else (int(self.end)-19,int(self.end)+20)
-		self.end_interval = (int(self.end)-19,int(self.end)+20) if self.strand == "+" else (int(self.start)-20,int(self.start)+19)
+		self.start_interval = (int(self.start)-20,int(self.start)+29) if self.strand == "+" else (int(self.end)-29,int(self.end)+20)
+		self.end_interval = (int(self.end)-29,int(self.end)+20) if self.strand == "+" else (int(self.start)-20,int(self.start)+29)
 
 	def get_donor(self):
 			if self.donor_site !="NA":
@@ -74,7 +75,7 @@ def get_pos_and_coords_by_intron(file_name,dico_info):
 		seq_of_interest = dico_info[content[3]]
 		start_site = seq_of_interest[0][0]
 		end_site = seq_of_interest[1][0]
-		Intron_Object = IntronInfo(intron_id=content[3], trans_id=content[5], gene_id=content[6], chromosome=content[0], strand=content[4], start=content[1], end=content[2],GC_rate=content[12],start_site=start_site,end_site=end_site)
+		Intron_Object = IntronInfo(intron_id=content[3], trans_id=content[5], gene_id=content[6], chromosome=content[0], strand=content[4], start=content[1], end=content[2],GC_rate=content[12],start_site=start_site,end_site=end_site,intron_length=content[9])
 		intron_list.append(Intron_Object)
 
 
@@ -149,9 +150,12 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 	file_out.write(header)
 	###Parcours des introns pour annotation
 	for intron in intron_list:
+
 		intron_id = intron.id
 		splice_donor_interval = intron.start_interval
 		splice_acceptor_interval = intron.end_interval
+		#On vérifie la taille de l'intron, si la taille est inférieure à 60, on annote NA partout et on passe
+
 
 		###Détermination du parcours des deux intervales en fonction du brin + ou du brin -
 		gen_foreach_donor = (i for i in reversed(range(splice_donor_interval[0],splice_donor_interval[1]+1))) if intron.strand =="-" else (i for i in range(splice_donor_interval[0],splice_donor_interval[1]+1))
@@ -162,11 +166,15 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 		score_for_acceptor_seq = acceptor_score(all_acceptor_matrix,intron.acceptor_site) if intron.acceptor_site!="NA" else "NA"
 
 
-
+		print(intron_id)
 
 		position_in_splice_site = 0 #Compteur pour recupérer la sequence de référence quand pas annoté d'un SNP
 
 		for i in gen_foreach_donor:
+			if int(intron.intron_length) <60:
+				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Donor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\n"
+				file_out.write(line)
+				continue
 			if (intron_id,str(i)) in poly_info:
 				polymorphism = poly_info[intron_id,str(i)]
 				#Si le brin est moins, on affiche le nucléotide complémentaire dans les variables _rna :
@@ -217,6 +225,10 @@ def write_annotation_polymorphism(file_name,intron_list,poly_info):
 
 		position_in_splice_site = 0 # On remet le compteur à 0 pour le parcours de la séquence du site accepteur
 		for i in gen_foreach_acceptor:
+			if int(intron.intron_length) <60:
+				line = intron.chr+"\t"+str(i)+"\t"+intron.strand+"\t"+"Acceptor_site"+"\t"+str(position_in_splice_site+1)+"\t"+intron_id+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\t"+"NA"+"\n"
+				file_out.write(line)
+				continue
 			if (intron_id,str(i)) in poly_info:
 				polymorphism = poly_info[intron_id,str(i)]
 				#Si le brin est moins, on affiche le nucléotide complémentaire dans les variables _rna :

@@ -350,40 +350,6 @@ def CDS_annotation(transcript_complete):
 # -Distance en bp entre le stop du CDS et la position de l'intron en cas de rétention
 # -Distance en bp du dernier intron en cas de rétention
 # -Distance en bp du prochain stop en cas de rétention
-def coucou(transcript_complete,file_name_for_intron):
-	file_out_intron=open(file_name_for_intron,"w")
-	for trans_id,trans_object in transcript_complete.items():
-		#### ANNOTATIONS SUR LE TRANSCRIT
-		# Identifiant du transcrit :
-		transcript_id = trans_id
-		# Identifiant du gène du transcrit :
-		gene_id = trans_object.gene_id
-		# Séquence du transcrit
-		seq_for_transcript = trans_object.seq
-		# On récupère les coordonnées transcrit du codon start et stop canonique
-		cds_start = trans_object.cds_start
-		cds_stop = trans_object.cds_stop
-		# On récupère tous les introns du transcrit, ainsi que leur position sur le transcrit
-		introns_for_transcript = trans_object.intron_pos
-		#### ANNOTATIONS SUR LES INTRONS
-		# Pour chaque intron du transcrit :
-		for intron in introns_for_transcript:
-			# Compteur total :
-			# Identifiant de l'intron :
-			intron_id = intron[2].id
-			# On récupère le rang de l'intron dans le transcrit
-			intron_rank = introns_for_transcript.index(intron)+1
-			# On récupère sa position dans le transcrit
-			intron_start = intron[0]
-			# On récupère sa séquence :
-			intron_object = intron[2]
-			intron_seq = intron_object.seq
-			dist_next_stop = next_stop(seq=seq_for_transcript,intron_seq=intron_seq,intron_start=intron_start,start=cds_start)
-			Bed_format = intron_object.chr+"\t"+intron_object.start+"\t"+intron_object.end+"\t"+intron_object.id
-			line_out_intron = Bed_format+"\t"+str(dist_next_stop)+"\n"
-			file_out_intron.write(line_out_intron)
-
-	file_out_intron.close()
 
 def PTC_annotation(transcript_complete):
 	PTC_dic = {}
@@ -733,20 +699,22 @@ intron_by_transcript = get_all_intron_for_transcript(liste_intron,seq_info)
 # Association des introns et des exons dans un transcrit
 transcript_complete = association_between_intron_and_exon(intron_by_transcript,CDS_by_transcript)
 # Pour chaque transcrit, on annote chaque intron du transcrit pour vérifier si il est NMD visible
-# PTC_dic = PTC_annotation(transcript_complete)
+PTC_dic = PTC_annotation(transcript_complete)
 # On annote également les transcrits
-# CDS_dic = CDS_annotation(transcript_complete)
+CDS_dic = CDS_annotation(transcript_complete)
 # On lance la fonction qui va permettre de calculer la densité des fenêtres UTR
-# five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR = intron_density_in_UTR(transcript_complete)
+five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR = intron_density_in_UTR(transcript_complete)
 # On lance les fonctions d'écritures :
 # -Pour les introns :
-# write_file_for_intron(PTC_dic,output_file_intron)
+write_file_for_intron(PTC_dic,output_file_intron)
 # -Pour les transcrits :
-# wr
-# write_file_for_transcript(CDS_dic,output_file_transcript)
+write_file_for_transcript(CDS_dic,output_file_transcript)
 # Pour les fenêtres des UTRs
-# write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,output_file_windows)
+write_file_for_windows_density(five_UTR_density,transcript_for_windows_in_five_UTR,three_UTR_density,transcript_for_windows_in_three_UTR,output_file_windows)
 
+
+
+####Rajouté ensuite pour calculer la densité des introns dans le CDS
 # RAJOUT CDS
 
 # for key,value in transcript_complete.items():
